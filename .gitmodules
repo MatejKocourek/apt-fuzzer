@@ -1,0 +1,6 @@
+[submodule "code-coverage/tree-sitter"]
+	path = code-coverage/tree-sitter
+	url = https://github.com/tree-sitter/tree-sitter
+[submodule "code-coverage/tree-sitter-c"]
+	path = code-coverage/tree-sitter-c
+	url = https://github.com/tree-sitter/tree-sitter-c
