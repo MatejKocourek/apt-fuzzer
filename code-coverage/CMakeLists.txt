@@ -23,10 +23,11 @@ target_include_directories(tree-sitter-c PUBLIC tree-sitter-c/src)
 
 target_include_directories(tree-sitter PUBLIC tree-sitter/lib/src tree-sitter/lib/include)
 
-target_include_directories(code-coverage PUBLIC tree-sitter/lib/src tree-sitter/lib/include tree-sitter-c/src cpp-tree-sitter/include)
+target_include_directories(code-coverage PUBLIC tree-sitter-c/src cpp-tree-sitter/include)
 target_link_libraries(code-coverage PRIVATE tree-sitter tree-sitter-c)
 
 
 set_property(TARGET code-coverage PROPERTY CXX_STANDARD 20)
+set_property(TARGET code-coverage PROPERTY C_STANDARD 11)
 
 # TODO: Add tests and install targets if needed.
