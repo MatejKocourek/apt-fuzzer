@@ -386,7 +386,6 @@ struct FileInstrument {
 
 	FileInstrument(std::string sourcecode, std::string filename) : sourcecode(std::move(sourcecode)), filename(std::move(filename))
 	{
-
 	}
 
 	std::string sourcecode;
@@ -442,6 +441,7 @@ struct FileInstrument {
 				std::cerr << "Encounter untested type, treating it as one-line expression/statement: " << statement.getType() << std::endl;
 				[[fallthrough]];
 			case ts_symbol_identifiers::sym_return_statement:
+			case ts_symbol_identifiers::sym_if_statement:
 			case ts_symbol_identifiers::sym_declaration:
 			case ts_symbol_identifiers::sym_expression:
 			case ts_symbol_identifiers::sym_for_statement:
@@ -467,7 +467,20 @@ struct FileInstrument {
 				instrumentPossibleOneLiner(statement.getChild(statement.getNumChildren() - 1));
 				break;
 			}
+			case ts_symbol_identifiers::sym_if_statement:
+			{
+				assert(statement.getNumChildren() >= 3);
 
+				instrumentPossibleOneLiner(statement.getChild(2));
+
+				auto possibleElse = statement.getChild(statement.getNumChildren() - 1);
+
+				if (possibleElse.getSymbol() == ts_symbol_identifiers::sym_else_clause)
+				{
+					instrumentPossibleOneLiner(possibleElse.getChild(possibleElse.getNumChildren() - 1));
+				}
+				break;
+			}
 
 			}
 		}
@@ -537,7 +550,7 @@ struct FileInstrument {
 		{
 			for (size_t i = 0; i < allFiles.size(); ++i)
 			{
-				result += STR("unsigned long long " << arrName << "[" << allFiles[i].instrumentations.size() << "];");
+				result += STR("unsigned long long " << "_F" << i << "[" << allFiles[i].instrumentations.size() << "];");
 			}
 			result += '\n';
 
@@ -554,20 +567,20 @@ struct FileInstrument {
 				ss <<
 					"unsigned long long LH" << i << "=0;"
 					"for(unsigned long long i=0;i<" << allFiles[i].instrumentations.size() << ";++i)"
-					"if(" << arrName << "[i]" ">" "0" ")"
-					"++LH" << i << ";"
+						"if(" << "_F" << i << "[i]" ">" "0" ")"
+							"++LH" << i << ";"
 					;
 
 			}
 
 			ss <<
 				"fprintf(f,\""
+				"TN:test\\n"
 				;
 
 			for (size_t i = 0; i < allFiles.size(); ++i)
 			{
 				ss <<
-					"TN:test\\n"
 					"SF:" << "filename" << "\\n";//allFiles[i].filename
 
 				for (size_t j = 0; j < allFiles[i].instrumentations.size(); j++)
@@ -588,7 +601,7 @@ struct FileInstrument {
 				for (size_t j = 0; j < allFiles[i].instrumentations.size(); j++)
 				{
 					ss <<
-						arrName << "[" << j << "]" ",";
+						 "_F" << i << "[" << j << "]" ",";
 				}
 				ss << "LH" << i;
 			}
@@ -600,7 +613,7 @@ struct FileInstrument {
 		}
 		else
 		{
-			std::string arrDecl = STR("extern size_t " << arrName << "[];\n");
+			std::string arrDecl = STR("extern unsigned long long " << arrName << "[];\n");
 
 			result.insert(result.end(), arrDecl.begin(), arrDecl.end());
 		}
@@ -700,7 +713,7 @@ int main(int argc, char* argv[]) {
 	
 	for (size_t i = 0; i < fileInstruments.size(); ++i)
 	{
-		std::ofstream outFile(STR("instrumentation_" << i << ".c"));
+		std::ofstream outFile(STR(i << "_coverage.c"));
 
 		outFile << fileInstruments[i].instrument(i, fileInstruments) << std::endl;
 
