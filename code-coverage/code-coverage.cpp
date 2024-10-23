@@ -384,30 +384,69 @@ enum ts_symbol_identifiers : uint16_t {
 
 struct FileInstrument {
 
-	FileInstrument(std::string sourcecode, std::string filename) : sourcecode(std::move(sourcecode)), filename(std::move(filename))
-	{
+	FileInstrument(std::string sourcecode, std::string filename, int fileId) : sourcecode(std::move(sourcecode)), filename(std::move(filename)), fileId(std::move(fileId))
+	{ 
+		parseSource();
 	}
 
-	std::string sourcecode;
-	std::string filename;
+	const std::string sourcecode;
+	const std::string filename;
+	const int fileId;
 	bool thisIsMainFile = false;
 
 	uint32_t lastInstrumentedLine = -1;
-	//std::vector<TSPoint> instrumentations;//std::pair<TSPoint, std::string>
-	std::vector<std::pair<uint32_t, std::string>> instrumentationsStr;
 
 	std::vector<std::pair<uint32_t, uint32_t>> instrumentations;
+	std::vector<std::pair<uint32_t, std::string>> instrumentationsStr;
 
 	void instrumentLine(uint32_t bytePos, uint32_t row)
 	{
 		if (row != lastInstrumentedLine) [[likely]]
-			{
-				instrumentations.emplace_back(bytePos, row + 1);
-
-				lastInstrumentedLine = row;
-			}
+		{
+			instrumentations.emplace_back(bytePos, row + 1);
+			lastInstrumentedLine = row;
+		}
 	}
+	void instrumentChildred(const ts::Node& node)
+	{
+		auto type = static_cast<ts_symbol_identifiers>(node.getSymbol());
+		switch (type)
+		{
+		case ts_symbol_identifiers::sym_for_statement:
+		case ts_symbol_identifiers::sym_while_statement:
+		{
+			assert(node.getNumChildren() > 0);
 
+			instrumentPossibleOneLiner(node.getChild(node.getNumChildren() - 1));
+			break;
+		}
+		case ts_symbol_identifiers::sym_if_statement:
+		{
+			assert(node.getNumChildren() >= 3);
+
+			instrumentPossibleOneLiner(node.getChild(2));
+
+			auto possibleElse = node.getChild(node.getNumChildren() - 1);
+
+			if (possibleElse.getSymbol() == ts_symbol_identifiers::sym_else_clause)
+				instrumentPossibleOneLiner(possibleElse.getChild(possibleElse.getNumChildren() - 1));
+			break;
+		}
+		case ts_symbol_identifiers::sym_compound_statement:
+		{
+			instrumentCompoundStatement(node);
+			break;
+		}
+
+		default:
+		{
+			for (const auto& child : ts::Children(node))
+			{
+				instrumentChildred(child);
+			}
+		}
+		}
+	}
 
 	void instrumentPossibleOneLiner(const ts::Node& statement)
 	{
@@ -431,9 +470,9 @@ struct FileInstrument {
 
 		for (const auto& statement : ts::Children(compoundStatement))
 		{
-			std::cout << statement.getPointRange().start.row << ':' << statement.getPointRange().start.column << ' ' << statement.getType() << std::endl;
+			//std::cout << statement.getPointRange().start.row << ':' << statement.getPointRange().start.column << ' ' << statement.getType() << std::endl;
 
-
+			// Instrument line itself
 			auto type = static_cast<ts_symbol_identifiers>(statement.getSymbol());
 			switch (type)
 			{
@@ -445,44 +484,20 @@ struct FileInstrument {
 			case ts_symbol_identifiers::sym_declaration:
 			case ts_symbol_identifiers::sym_expression:
 			case ts_symbol_identifiers::sym_for_statement:
+			case ts_symbol_identifiers::sym_while_statement:
 			case ts_symbol_identifiers::sym_expression_statement:
 			{
 				instrumentLine(statement.getByteRange().start, statement.getPointRange().start.row);
-
 				break;
 			}
 			case ts_symbol_identifiers::anon_sym_LBRACE:
 			case ts_symbol_identifiers::anon_sym_RBRACE:
+			case ts_symbol_identifiers::sym_comment:
 				break;
 			}
 
-
-			switch (type)
-			{
-			case ts_symbol_identifiers::sym_for_statement:
-			case ts_symbol_identifiers::sym_while_statement:
-			{
-				assert(statement.getNumChildren() > 0);
-
-				instrumentPossibleOneLiner(statement.getChild(statement.getNumChildren() - 1));
-				break;
-			}
-			case ts_symbol_identifiers::sym_if_statement:
-			{
-				assert(statement.getNumChildren() >= 3);
-
-				instrumentPossibleOneLiner(statement.getChild(2));
-
-				auto possibleElse = statement.getChild(statement.getNumChildren() - 1);
-
-				if (possibleElse.getSymbol() == ts_symbol_identifiers::sym_else_clause)
-				{
-					instrumentPossibleOneLiner(possibleElse.getChild(possibleElse.getNumChildren() - 1));
-				}
-				break;
-			}
-
-			}
+			// Instrument its children, if needed
+			instrumentChildred(statement);
 		}
 
 	}
@@ -523,7 +538,9 @@ struct FileInstrument {
 					}
 					// If the function reaches here, main was declared, but not defined
 				}
+
 				found:
+
 				for (const auto& child : ts::Children(topLevelExpr))
 				{
 					if (child.getSymbol() == ts_symbol_identifiers::sym_compound_statement)
@@ -532,92 +549,13 @@ struct FileInstrument {
 						break;
 					}
 				}
-				std::cout << std::endl;
+				//std::cout << std::endl;
 			}
 		}
 	}
 
-	std::string instrument(int fileId, std::vector<FileInstrument> allFiles) const
+	void instrument(std::ostream& os) const
 	{
-		static_assert(sizeof(char) == 1);
-
-		std::string result;
-		result.reserve(sourcecode.size() * 2);
-
-		std::string arrName = STR("_F" << fileId);
-
-		if (thisIsMainFile)
-		{
-			for (size_t i = 0; i < allFiles.size(); ++i)
-			{
-				result += STR("unsigned long long " << "_F" << i << "[" << allFiles[i].instrumentations.size() << "];");
-			}
-			result += '\n';
-
-			std::stringstream ss;
-
-			ss << "#include <stdio.h>\n"
-				"#include <stdlib.h>\n"
-				"void _GenerateLcov(){"
-				"FILE *f = fopen(\"prog.lcov\", \"w\");"
-				;
-
-			for (size_t i = 0; i < allFiles.size(); ++i)
-			{
-				ss <<
-					"unsigned long long LH" << i << "=0;"
-					"for(unsigned long long i=0;i<" << allFiles[i].instrumentations.size() << ";++i)"
-						"if(" << "_F" << i << "[i]" ">" "0" ")"
-							"++LH" << i << ";"
-					;
-
-			}
-
-			ss <<
-				"fprintf(f,\""
-				"TN:test\\n"
-				;
-
-			for (size_t i = 0; i < allFiles.size(); ++i)
-			{
-				ss <<
-					"SF:" << "filename" << "\\n";//allFiles[i].filename
-
-				for (size_t j = 0; j < allFiles[i].instrumentations.size(); j++)
-					ss << "DA:" << allFiles[i].instrumentations[j].second << ",%llu\\n";
-
-				ss <<
-					"LH:%llu\\n"
-					"LF:" << allFiles[i].instrumentations.size() << "\\n"
-					<< "end_of_record" "\\n"
-					;
-			}
-
-			ss << "\"";
-
-			for (size_t i = 0; i < allFiles.size(); ++i)
-			{
-				ss << ",";
-				for (size_t j = 0; j < allFiles[i].instrumentations.size(); j++)
-				{
-					ss <<
-						 "_F" << i << "[" << j << "]" ",";
-				}
-				ss << "LH" << i;
-			}
-
-
-			ss << ");}\n";
-
-			result += ss.str();
-		}
-		else
-		{
-			std::string arrDecl = STR("extern unsigned long long " << arrName << "[];\n");
-
-			result.insert(result.end(), arrDecl.begin(), arrDecl.end());
-		}
-
 		size_t sourcePos = 0;
 		size_t strPos = 0;
 
@@ -625,99 +563,155 @@ struct FileInstrument {
 		{
 			if (instrumentationsStr.size() - strPos > 0 && instrumentationsStr[strPos].first < instrumentations[i].first)
 			{
-				result.insert(result.end(), &sourcecode.c_str()[sourcePos], &sourcecode.c_str()[instrumentationsStr[strPos].first]);
+				os << std::string_view(sourcecode.begin() + sourcePos, sourcecode.begin() + instrumentationsStr[strPos].first);
 				sourcePos = instrumentationsStr[strPos].first;
 
-				result += instrumentationsStr[strPos++].second;
+				os << instrumentationsStr[strPos++].second;
 			}
 			else
 			{
-				result.insert(result.end(), &sourcecode.c_str()[sourcePos], &sourcecode.c_str()[instrumentations[i].first]);
+				os << std::string_view(sourcecode.begin() + sourcePos, sourcecode.begin() + instrumentations[i].first);
 				sourcePos = instrumentations[i].first;
 
-				result += STR("++" << arrName << '[' << i << ']' << ';');
+				os << "++" << "_F" << fileId << '[' << i << ']' << ';';
 				++i;
 			}
-
-
-			//std::visit([&](auto&& arg)
-			//	{
-			//		using T = std::decay_t<decltype(arg)>;
-			//		if constexpr (std::is_same_v<T, uint32_t>)
-			//		{
-			//			auto str = STR("++" << arrName << '[' << arg << ']' << ';');
-
-			//			//forwardPos += str.size();
-
-			//			result.insert(result.end(), str.begin(), str.end());
-			//		}
-			//		else if constexpr (std::is_same_v<T, std::string>)
-			//		{
-			//			//forwardPos += arg.size();
-			//			result.insert(result.end(), arg.begin(), arg.end());
-			//		}
-			//		else
-			//			static_assert(false, "non-exhaustive visitor!");
-			//	}, i.second);
 		}
 
 		if (instrumentationsStr.size() - strPos > 0)
 		{
-			result.insert(result.end(), &sourcecode.c_str()[sourcePos], &sourcecode.c_str()[instrumentationsStr[strPos].first]);
+			os << std::string_view(sourcecode.begin() + sourcePos, sourcecode.begin() + instrumentationsStr[strPos].first);
 			sourcePos = instrumentationsStr[strPos].first;
 
-			result += instrumentationsStr[strPos++].second;
+			os << instrumentationsStr[strPos++].second;
 		}
 
-		result.insert(result.end(), &sourcecode.c_str()[sourcePos], &sourcecode.c_str()[sourcecode.size()]);
-
-		return result;
+		os << std::string_view(sourcecode.begin() + sourcePos, sourcecode.end());
 	}
 
 };
 
+void instrumentHeaderExtern(std::ostream& os, const FileInstrument& file)
+{
+	os << "extern unsigned long long " << "_F" << file.fileId << "[];\n";
+}
 
+void instrumentHeaderMain(std::ostream& os, const std::vector<FileInstrument>& allFiles)
+{
+	for (size_t i = 0; i < allFiles.size(); ++i)
+		os << "unsigned long long " << "_F" << i << "[" << allFiles[i].instrumentations.size() << "];";
+
+	os << '\n';
+
+	os <<
+		"#include <stdio.h>\n"
+		"#include <stdlib.h>\n"
+		"void _GenerateLcov(){"
+		"FILE *f = fopen(\"prog.lcov\", \"w\");"
+		;
+
+	for (size_t i = 0; i < allFiles.size(); ++i)
+	{
+		os <<
+			"unsigned long long LH" << i << "=0;"
+			"for(unsigned long long i=0;i<" << allFiles[i].instrumentations.size() << ";++i)"
+			"if(" << "_F" << i << "[i]" ">" "0" ")"
+			"++LH" << i << ";"
+			;
+
+	}
+
+	os <<
+		"fprintf(f,\""
+		"TN:test\\n"
+		;
+
+	for (size_t i = 0; i < allFiles.size(); ++i)
+	{
+		os <<
+			"SF:" << "filename" << "\\n";//allFiles[i].filename
+
+		for (size_t j = 0; j < allFiles[i].instrumentations.size(); j++)
+			os << "DA:" << allFiles[i].instrumentations[j].second << ",%llu\\n";
+
+		os <<
+			"LH:%llu\\n"
+			"LF:" << allFiles[i].instrumentations.size() << "\\n"
+			<< "end_of_record" "\\n"
+			;
+	}
+
+	os << "\"";
+
+	for (size_t i = 0; i < allFiles.size(); ++i)
+	{
+		os << ",";
+		for (size_t j = 0; j < allFiles[i].instrumentations.size(); j++)
+		{
+			os <<
+				"_F" << i << "[" << j << "]" ",";
+		}
+		os << "LH" << i;
+	}
+
+
+	os << ");}\n";
+}
+
+
+std::string loadFile(const char* path)
+{
+	auto file = std::ifstream(path);
+
+	if (!file.is_open())
+		throw std::runtime_error("Cannot open file");
+
+	std::string sourcecode = std::string(std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>());
+
+	if (file.fail())
+		throw std::runtime_error("Error reading file");
+
+	return sourcecode;
+}
 
 int main(int argc, char* argv[]) {
 	if (argc <= 1) [[unlikely]]
 	{
-		std::cerr << "Provide path(s) to source files" << std::endl;
+		std::cerr << "Provide path(s) to source file(s)" << std::endl;
 		return EXIT_FAILURE;
 	}
 
-	std::vector<FileInstrument> fileInstruments;
-
-	for (size_t fileId = 1; fileId < argc; ++fileId)
+	try
 	{
+		std::vector<FileInstrument> fileInstruments;
+
+		for (int fileId = 1; fileId < argc; ++fileId)
 		{
-			auto file = std::ifstream(argv[fileId]);
-
-			if (!file.is_open())
+			try
 			{
-				std::cerr << "Cannot open file: " << argv[fileId] << std::endl;
-				continue;
+				fileInstruments.emplace_back(loadFile(argv[fileId]), argv[fileId], fileId);
 			}
-
-			std::string sourcecode = std::string(std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>());
-
-			if (file.fail())
+			catch (const std::exception& e)
 			{
-				std::cerr << "Error reading file: " << argv[fileId] << std::endl;
-				continue;
+				std::cerr << "Error parsing file " << argv[fileId] << ": " << e.what();
 			}
-
-			fileInstruments.emplace_back(std::move(sourcecode), argv[fileId]);
 		}
-		fileInstruments.back().parseSource();
+
+		for (const auto& i : fileInstruments)
+		{
+			std::ofstream outFile(STR(i.fileId << "_instrumented.c"));
+
+			if (i.thisIsMainFile)
+				instrumentHeaderMain(outFile, fileInstruments);
+			else
+				instrumentHeaderExtern(outFile, i);
+
+			i.instrument(outFile);
+		}
 	}
-	
-	for (size_t i = 0; i < fileInstruments.size(); ++i)
+	catch (const std::exception& e)
 	{
-		std::ofstream outFile(STR(i << "_coverage.c"));
-
-		outFile << fileInstruments[i].instrument(i, fileInstruments) << std::endl;
-
-		std::cout << fileInstruments[i].instrument(i, fileInstruments) << std::endl;
+		std::cerr << e.what();
 	}
 
 	return 0;
