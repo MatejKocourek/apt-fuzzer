@@ -23,7 +23,7 @@ test:
     - git submodule update --init --recursive
     - cd code-coverage
     - make test
-  coverage: "lines\.+:\s+([\d.]+)%" #Look at those regexes for your specific code coverage tool,  https://docs.gitlab.com/ee/ci/testing/code_coverage.html#test-coverage-examples
+  coverage: "lines\\.+:\\s+([\\d.]+)%" #Look at those regexes for your specific code coverage tool,  https://docs.gitlab.com/ee/ci/testing/code_coverage.html#test-coverage-examples
 
 benchmark:
   stage: test
