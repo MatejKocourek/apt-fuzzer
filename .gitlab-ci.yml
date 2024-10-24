@@ -4,8 +4,8 @@ image: ubuntu:latest
 build-job:
   stage: build
   script:
+    - apt-get update -y && apt install -y make cmake g++ git
     - git submodule update --init --recursive
-    - apt-get update -y && apt install -y make cmake g++
     - cd code-coverage
     - make build
     - mkdir -p code-coverage/build && touch code-coverage/build/test
