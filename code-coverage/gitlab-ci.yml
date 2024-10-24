@@ -1,0 +1,45 @@
+image: ubuntu:latest
+
+# You do not need this job if you use an interpreted language such as Python
+build-job:
+  stage: build
+  script:
+    - apt-get update -y && apt install -y make cmake
+    - cd code-coverage
+    - make build
+    - mkdir -p code-coverage/build && touch code-coverage/build/test
+  artifacts:
+    paths:
+      - "code-coverage/build/" # replace by the directory where the resulting binary is stored and everything needed to run it
+    expire_in: 1 hour
+   
+test:
+  stage: test
+  dependencies:
+    - build-job
+  script:
+    - apt-get update -y && apt install -y make cmake lcov
+    - cd code-coverage
+    - make test
+  coverage: "/lines......: ([0-9]{1,3})%$/" #Look at those regexes for your specific code coverage tool,  https://docs.gitlab.com/ee/ci/testing/code_coverage.html#test-coverage-examples
+
+benchmark:
+  stage: test
+  dependencies:
+    - build-job
+  script:
+    - apt-get update -y && apt install -y make cmake
+    - cd code-coverage
+    - make benchmark
+
+grade:
+  image: 
+    name: pierredb/ni-apt-grader:latest
+    pull_policy: always
+  stage: test
+  needs: ["test", "benchmark"]
+  script:
+    - export PROJECT_DIR=$PWD
+    - cd /grader
+    - ls -l
+    - ./grade --task 1 $PROJECT_DIR/code-coverage

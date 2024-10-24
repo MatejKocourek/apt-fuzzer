@@ -31,7 +31,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # Tests
 
-set(COVERAGE ON)
+#set(COVERAGE ON)
 
 # If coverage is enabled, modify the compile flags
 if(COVERAGE)
