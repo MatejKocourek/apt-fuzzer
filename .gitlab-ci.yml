@@ -4,7 +4,7 @@ image: ubuntu:latest
 build-job:
   stage: build
   script:
-    - apt-get update -y && apt install -y make cmake
+    - apt-get update -y && apt install -y make cmake g++
     - cd code-coverage
     - make build
     - mkdir -p code-coverage/build && touch code-coverage/build/test
@@ -18,7 +18,7 @@ test:
   dependencies:
     - build-job
   script:
-    - apt-get update -y && apt install -y make cmake lcov
+    - apt-get update -y && apt install -y make cmake g++ lcov
     - cd code-coverage
     - make test
   coverage: "/lines......: ([0-9]{1,3})%$/" #Look at those regexes for your specific code coverage tool,  https://docs.gitlab.com/ee/ci/testing/code_coverage.html#test-coverage-examples
@@ -28,7 +28,7 @@ benchmark:
   dependencies:
     - build-job
   script:
-    - apt-get update -y && apt install -y make cmake
+    - apt-get update -y && apt install -y make cmake g++
     - cd code-coverage
     - make benchmark
 
