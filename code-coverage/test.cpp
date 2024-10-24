@@ -103,7 +103,7 @@ TEST_F(FileInstrumentTest, Instrument) {
     std::stringstream output;
     fileInstrument->instrument(output);
 
-    EXPECT_FALSE(output.str().empty());//TODO
+    EXPECT_EQ(output.str(), "int main() {atexit(_GenerateLcov); ++_F1[0];return 0; }");
 }
 
 // Test instrumentHeaderExtern function
@@ -126,5 +126,5 @@ TEST(InstrumentHeaderTest, InstrumentHeaderMain) {
     std::stringstream output;
     instrumentHeaderMain(output, allFiles);
 
-    EXPECT_FALSE(output.str().empty());  // TODO
+    EXPECT_FALSE(output.str().empty());
 }
