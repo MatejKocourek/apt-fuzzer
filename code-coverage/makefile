@@ -1,22 +1,11 @@
-# Define default environment variables
-#TARGET_COV ?= ./src
-
 # Compiler and flags
 CC = gcc
-CFLAGS = -O0
 
 # Directories
 BUILD_DIR = $(PWD)/build
-BUILD_DIR_TEST = $(PWD)/buildt
+BUILD_DIR_TEST = $(PWD)/build_t
 RUN_DIR = $(PWD)/instrumented
-SRC_DIR = $(PWD)/src
 TEST_DIR = $(PWD)/tests
-BENCH_DIR = $(PWD)/benchmarks
-
-# Output files
-EXECUTABLE = $(BUILD_DIR)/apt
-COVERAGE_FILE = coverage.lcov
-BENCHMARK_FILE = benchmark.txt
 
 C_FILES=$(find $(TARGET_COV) -type f -name "*.c")
 
