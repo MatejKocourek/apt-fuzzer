@@ -1,0 +1,73 @@
+# Define default environment variables
+#TARGET_COV ?= ./src
+
+# Compiler and flags
+CC = gcc
+CFLAGS = -O0
+
+# Directories
+BUILD_DIR = $(PWD)/build
+BUILD_DIR_TEST = $(PWD)/buildt
+RUN_DIR = $(PWD)/instrumented
+SRC_DIR = $(PWD)/src
+TEST_DIR = $(PWD)/tests
+BENCH_DIR = $(PWD)/benchmarks
+
+# Output files
+EXECUTABLE = $(BUILD_DIR)/apt
+COVERAGE_FILE = coverage.lcov
+BENCHMARK_FILE = benchmark.txt
+
+C_FILES=$(find $(TARGET_COV) -type f -name "*.c")
+
+# The 'build' target builds the program using CMake
+build:
+	@echo "Building the program using CMake..."
+	@mkdir -p $(BUILD_DIR)
+	@cd $(BUILD_DIR) && cmake .. && make
+
+# The 'test' target runs the test suite and generates the coverage report
+test:
+	@echo "Running tests and generating code coverage..."
+	@mkdir -p $(BUILD_DIR_TEST)
+	@cmake -S . -B $(BUILD_DIR_TEST) -DCOVERAGE=ON
+	@cmake --build $(BUILD_DIR_TEST) --target coverage
+
+# The 'benchmark' target runs a microbenchmark and prints the speedup
+benchmark: build
+	@echo "Compiling files for benchmarking..."
+	@cd tests/fibonacci/ && $(BUILD_DIR)/code-coverage fibonacci.c
+	@$(CC) -O0 tests/fibonacci/0_instrumented.c -o tests/fibonacci/fibonacci-instr
+	@$(CC) -O0 tests/fibonacci/fibonacci.c -o tests/fibonacci/fibonacci-og
+	@echo "Running benchmarks..."
+
+	@echo "Running PROGRAM_V1..."
+	@START_V1=$$(date +%s%3N) && \
+	tests/fibonacci/fibonacci-og 450000000 > /dev/null && \
+	END_V1=$$(date +%s%3N) && \
+	TIME_V1=$$((END_V1 - START_V1)) && \
+	echo "Time for PROGRAM_V1: $$TIME_V1 milliseconds" && \
+	echo "Running PROGRAM_V2..." && \
+	START_V2=$$(date +%s%3N) && \
+	tests/fibonacci/fibonacci-instr 450000000 > /dev/null && \
+	END_V2=$$(date +%s%3N) && \
+	TIME_V2=$$((END_V2 - START_V2)) && \
+	echo "Time for PROGRAM_V2: $$TIME_V2 milliseconds" && \
+	SLOWDOWN=$$(((TIME_V2*100) / (TIME_V1))); \
+	SLOWDOWN0=$$((SLOWDOWN / 100)); \
+	SLOWDOWN1=$$((SLOWDOWN % 100)); \
+	echo "Slow-down: $$SLOWDOWN0.$$SLOWDOWN1";
+
+	@rm tests/fibonacci/0_instrumented.c
+	@rm tests/fibonacci/fibonacci-instr
+	@rm tests/fibonacci/fibonacci-og
+
+# The 'run' target runs the code coverage tool on the C file(s) specified by the TARGET_COV environment variable
+run: build
+	@echo "Running code coverage tool on files in $(TARGET_COV)/*.c"
+	@mkdir -p $(RUN_DIR)
+	@cd $(RUN_DIR) && $(BUILD_DIR)/code-coverage $(TARGET_COV)/*.c
+	@cd $(RUN_DIR) && $(CC) *_instrumented.c -o instr_prog
+	@cd $(RUN_DIR) && ./instr_prog $(ARGS_COV)
+	@cd $(RUN_DIR) && mv coverage.lcov $(TARGET_COV)/coverage.lcov
+	@rm -fr $(RUN_DIR)
