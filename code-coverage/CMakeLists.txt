@@ -31,7 +31,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # Tests
 
-#set(COVERAGE ON)
+set(COVERAGE ON)
 
 # If coverage is enabled, modify the compile flags
 if(COVERAGE)
@@ -62,20 +62,20 @@ if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
     message(STATUS "GCC detected, generating code coverage")
 
     # Add compiler flags for coverage
-    target_compile_options(tests PRIVATE -fprofile-arcs -ftest-coverage -g)
+    target_compile_options(tests PRIVATE -fprofile-arcs -ftest-coverage -g -O0)
     target_link_libraries(tests PRIVATE gcov)
     target_link_options(tests PRIVATE -fprofile-arcs -ftest-coverage)
 
     # Add a custom target to generate coverage report using lcov
     add_custom_target(coverage
-        COMMAND lcov --capture --directory . --output-file coverage.info
+        COMMAND ./tests
+        COMMAND lcov --capture --directory . --output-file coverage.info --include */FileInstrument.h
         COMMAND genhtml coverage.info --output-directory coverage_report
         COMMENT "Generating code coverage report..."
         DEPENDS tests
     )
 else()
     message(STATUS "Non-GCC compiler detected, cannot generate code coverage")
-    
 endif()
 
 else()

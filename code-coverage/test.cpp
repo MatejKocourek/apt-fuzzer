@@ -2,13 +2,6 @@
 #include "FileInstrument.h"
 #include <optional>
 
-// Demonstrate some basic assertions.
-TEST(tests, BasicAssertions) {
-	// Expect two strings not to be equal.
-	EXPECT_STRNE("hello", "world");
-	// Expect equality.
-	EXPECT_EQ(7 * 6, 42);
-}
 
 // Test Fixture for FileInstrument tests
 class FileInstrumentTest : public ::testing::Test {
@@ -66,7 +59,7 @@ TEST_F(FileInstrumentEmpty, InstrumentChildred) {
     ts::Node rootNode = tree.getRootNode();
 
     // Traverse the parsed source code and instrument children nodes
-    fileInstrument->instrumentChildren(rootNode);
+    fileInstrument->instrumentRecursive(rootNode);
 
     EXPECT_GT(fileInstrument->instrumentations.size(), 0); // Expect some instrumentation to be added
 }
@@ -79,12 +72,14 @@ TEST_F(FileInstrumentEmpty, InstrumentPossibleOneLiner) {
     ts::Node rootNode = tree.getRootNode();
 
     // Assuming the first child of the root node is the if-statement
-    ts::Node ifNode = rootNode.getChild(0);
+    ts::Node ifNode = rootNode.getChild(0).getChild(2);
 
     fileInstrument->instrumentPossibleOneLiner(ifNode);
 
     EXPECT_EQ(fileInstrument->instrumentationsStr.size(), 2);  // One-liner should be surrounded by {}
+    EXPECT_EQ(fileInstrument->instrumentationsStr[0].first, 10);
     EXPECT_EQ(fileInstrument->instrumentationsStr[0].second, "{");
+    EXPECT_EQ(fileInstrument->instrumentationsStr[1].first, 19);
     EXPECT_EQ(fileInstrument->instrumentationsStr[1].second, "}");
 }
 
@@ -98,7 +93,7 @@ TEST_F(FileInstrumentEmpty, InstrumentCompoundStatement) {
     // Assuming the first child of the root node is a compound statement
     ts::Node compoundNode = rootNode.getChild(0);
 
-    fileInstrument->instrumentCompoundStatement(compoundNode);
+    fileInstrument->instrumentRecursive(compoundNode);
 
     EXPECT_EQ(fileInstrument->instrumentations.size(), 3); // Expect three instrumented statements (declaration and if-statement)
 }
