@@ -1,3 +1,18 @@
+# Code coverage - NI-APT task 1
+
+Any information you want to write here
+
+## Testing
+
+Line coverage: ..% (for instance, 89%)
+You can add more coverage information if you want to.
+
+## Benchmark
+
+Slow-down of instrumentation: ...x (for instance, 10x slower)
+
+# Project annotation
+
 The goal of this project is to create a line coverage tool for C programs.
 
 | #   | Task          | Points |  Start |    End |
@@ -7,8 +22,10 @@ The goal of this project is to create a line coverage tool for C programs.
 The end date is a soft dead line.
 
 Given C files with one `main`, the code coverage tool should output instrumented C files, which, after running the `main`, will
-generate a `coverage.lcov` containing the line coverage using the [LCOV tracefile format](https://ltp.sourceforge.net/coverage/lcov/geninfo.1.php).
+generate a `coverage.lcov` containing the line coverage using the [LCOV tracefile format](https://manpages.debian.org/unstable/lcov/geninfo.1.en.html).
 LCOV trace files are commonly supported by coverage viewers. If you use VSCode, you can use the extension [Coverage Gutters](https://marketplace.visualstudio.com/items?itemName=ryanluker.vscode-coverage-gutters) to visualize the results of your tool.
+
+Note that you only want to compute the coverage of your program, not of the libraries it uses. For instance, `stdio.h`and `stdlib.h` should not be instrumented.
 
 ## Line coverage
 
@@ -17,7 +34,7 @@ To simplify, when a statement spans multiple lines, we only consider the first l
 
 ### Lcov file
 
-Here is the content of a `lcov.info` trace file for our purposes:
+Here is the content of a `coverage.lcov` trace file for our purposes:
 
 ```
 TN:test
@@ -35,14 +52,14 @@ LF:9
 end_of_record
 ```
 
-- `TN` is the name of the test
+- `TN` is the name of the test and must be non-empty
 - `SF` starts a section for one given C file
 - `DA` gives the covered line number and the number of times it was hit
 - `LH` is the number of covered lines
 - `LF` is the number of instrumented lines
 - `end_of_record` ends a section giving coverage for a given C file
 
-You can have several sections in one `lcov.info` file.
+You can have several sections in one `coverage.lcov` file.
 The line coverage for one file as a percentage is `LH / LF * 100`.
 
 ## Minimal supported subset of C
@@ -77,7 +94,7 @@ This is a simple way of computing the coverage. You can use other methods (e.g.,
 - In the same file, inject at the beginning of `main` a call to register the function that generates the lcov file to be called at exit (see [`atexit`](https://en.cppreference.com/w/c/program/atexit))
 - Pay attention to one-liner functions, compound statements
 
-Then you just have to compile the instrumented C files (preferably with `-O0`) and run the resulting executable `prog` to get the coverage in `prog.lcov`.
+Then you just have to compile the instrumented C files (preferably with `-O0`) and run the resulting executable `prog` to get the coverage in `coverage.lcov`.
 
 ## Testing
 
@@ -112,10 +129,10 @@ Here are instructions on how to submit the task:
 - Your code should run at least on Linux (on macOS and Windows, if you want)
 - the `code-coverage` directory should contain a `Makefile` with at least the following targets:
   - `build`: build your program (if you do the task in Python, you probably do not need this step)
-  - `test`: run your test suite and generate the coverage report
-  - `benchmark`: run the microbenchmark and display on stdout at least a line with `Speedup: [value]` where `[value]` is replaced by the actual speedup. If you have several microbenchmarks, put there the average speedup.
+  - `test`: run your test suite and generate the coverage report. Don't prevent the stdout output from displaying; it will be parsed to find the coverage ([as Gitlab does](https://docs.gitlab.com/ee/ci/testing/code_coverage.html))
+  - `benchmark`: run the microbenchmark and display on stdout at least a line with `Slow-down: [value]` where `[value]` is replaced by the actual slow-down. If you have several microbenchmarks, put there the average slow-down.
   - `run`: runs the code coverage tool on the C file(s) in the directory specified by environment variable `TARGET_COV`, outputs a `coverage.lcov` containing the coverage in `TARGET_COV`
-- You should have the attached `.gitlab-ci.yml` file at the root of your repository. It will run automatic tests on your coverage tool and will check the coverage of it. You will need to tailor it to what you need for the language(s) you chose to implement the task.
+- You should have the attached [`.gitlab-ci.yml`](../resources/code/.gitlab-ci.yml) file at the root of your repository. It will run automatic tests on your coverage tool and will check the coverage of it. You will need to tailor it to what you need for the language(s) you chose to implement the task.
 
 ### Documentation
 
