@@ -6,8 +6,6 @@ build-job:
   script:
     - apt-get update -y && apt install -y make cmake g++ git libboost-all-dev
     - git submodule update --init --recursive
-    - mkdir -p code-coverage/build && touch code-coverage/build/test
-    - mkdir -p fuzzer/build && touch fuzzer/build/test
     - cd code-coverage
     - make build
     - cd ..
