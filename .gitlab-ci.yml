@@ -14,7 +14,6 @@ build-job:
     - cd fuzzer
     - make build
     - cd ..
-
   artifacts:
     paths:
       - "code-coverage/build/" # replace by the directory where the resulting binary is stored and everything needed to run it
