@@ -6,10 +6,13 @@ build-job:
   script:
     - apt-get update -y && apt install -y make cmake g++ git libboost-all-dev
     - git submodule update --init --recursive
-    - cd code-coverage
-    - make build
     - mkdir -p code-coverage/build && touch code-coverage/build/test
     - mkdir -p fuzzer/build && touch fuzzer/build/test
+    - cd code-coverage
+    - make build
+    - cd fuzzer
+    - make build
+
   artifacts:
     paths:
       - "code-coverage/build/" # replace by the directory where the resulting binary is stored and everything needed to run it
