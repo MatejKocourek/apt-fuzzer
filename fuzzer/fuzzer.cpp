@@ -800,7 +800,7 @@ void fuzz()
 
     std::stack<std::pair<std::string, ExecutionResult>> unprocessedErrors;
 
-    while (keepRunning && uniqueResults.size() < NB_KNOWN_BUGS)
+    while (keepRunning)
     {
         auto input = generateRandomString(dist(gen), 33, 126);//1,255
         //std::cerr << "generated random string:" << input << std::endl;
@@ -825,7 +825,7 @@ void fuzz()
             //std::cerr << "NO Detected error for input " << input << std::endl;
         }
 
-        while (!unprocessedErrors.empty() && keepRunning && uniqueResults.size() < NB_KNOWN_BUGS)
+        while (!unprocessedErrors.empty() && keepRunning)
         {
             auto pop = std::move(unprocessedErrors.top());
             unprocessedErrors.pop();
@@ -855,6 +855,9 @@ void fuzz()
                     }
                     //std::cerr << "Detected new error " << err->errorName() << " for input " << pop.first << std::endl;
                     uniqueResults.push_back(std::move(err));
+
+                    if (uniqueResults.size() >= NB_KNOWN_BUGS)
+                        keepRunning = false;
                 }
             }
 
@@ -938,6 +941,8 @@ int main(int argc, char* argv[])
         auto threadCount = 1;// std::thread::hardware_concurrency();
         threads.reserve(threadCount-1);
 
+        std::cerr << "hardware::concurrency=" << std::thread::hardware_concurrency() << std::endl;
+
         std::cerr << "Running " << threadCount << " fuzzers" << std::endl;
 
         for (size_t i = 0; i < threadCount-1; i++)
@@ -952,9 +957,10 @@ int main(int argc, char* argv[])
         std::jthread updateStats([&]() {
             while (keepRunning)
             {
-                std::this_thread::sleep_for(std::chrono::seconds(5));
                 saveStatistics();
+                std::this_thread::sleep_for(std::chrono::seconds(5));
             }
+            saveStatistics();
         });
 
         fuzz();
