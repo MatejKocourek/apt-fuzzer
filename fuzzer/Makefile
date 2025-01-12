@@ -20,6 +20,7 @@ test:
 
 # The 'run' target runs the code coverage tool on the C file(s) specified by the TARGET_COV environment variable
 run: build
+	@echo "Build dir is $(BUILD_DIR)"
 	@echo "Running fuzzer on $(FUZZED_PROG) and placing results to $(RESULT_FUZZ)"
 	@cd $(BUILD_DIR) && ./fuzzer $(FUZZED_PROG) $(RESULT_FUZZ) $(MINIMIZE) $(INPUT)
 clean:
