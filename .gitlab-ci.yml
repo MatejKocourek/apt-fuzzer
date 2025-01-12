@@ -4,16 +4,32 @@ image: ubuntu:latest
 build-job:
   stage: build
   script:
-    - apt-get update -y && apt install -y make cmake g++ git
+    - apt-get update -y && apt install -y make cmake g++ git libboost-all-dev
     - git submodule update --init --recursive
     - cd code-coverage
     - make build
     - mkdir -p code-coverage/build && touch code-coverage/build/test
+    - mkdir -p fuzzer/build && touch fuzzer/build/test
   artifacts:
     paths:
       - "code-coverage/build/" # replace by the directory where the resulting binary is stored and everything needed to run it
+      - "fuzzer/build/" 
     expire_in: 1 hour
-   
+
+test-task1:
+  stage: test
+  dependencies:
+    - build-job
+  #rules:
+    #- changes: 
+        #- code-coverage/* # Only run it if you changed something to task 1
+  script:
+    - apt-get update -y && apt install -y make cmake g++ lcov git
+    - git submodule update --init --recursive
+    - cd code-coverage
+    - make test
+  coverage: "/^Coverage: ([0-9]{1,3})%$/" #Look at those regexes for your specific code coverage tool,  https://docs.gitlab.com/ee/ci/testing/code_coverage.html#test-coverage-examples
+
 test:
   stage: test
   dependencies:
@@ -23,23 +39,32 @@ test:
     - git submodule update --init --recursive
     - cd code-coverage
     - make test
-  coverage: "/lines......: ([0-9]{1,3})%$/" #Look at those regexes for your specific code coverage tool,  https://docs.gitlab.com/ee/ci/testing/code_coverage.html#test-coverage-examples
+  coverage: "/^Coverage: ([0-9]{1,3})%$/"
+  artifacts:
+    paths:
+      - "code-coverage/coverage.txt" # contains just the coverage percentage as a number
 
 benchmark:
   stage: test
   dependencies:
     - build-job
+  #rules:
+    #- changes: 
+      #- code-coverage/* # Only run it if you changed something to task 1
   script:
     - apt-get update -y && apt install -y make cmake g++
     - cd code-coverage
     - make benchmark
 
-grade:
-  image: 
+grade-task1:
+  image:
     name: pierredb/ni-apt-grader:latest
     pull_policy: always
+  #rules:
+    #- changes: 
+        #- code-coverage/* # Only run it if you changed something to task 1
   stage: test
-  needs: ["test", "benchmark"]
+  needs: ["test-task1", "benchmark"]
   script:
     - apt-get update -y && apt install -y make cmake g++ lcov git
     - git submodule update --init --recursive
@@ -47,3 +72,14 @@ grade:
     - cd /grader
     - ls -l
     - ./grade --task 1 $PROJECT_DIR/code-coverage
+
+grade-task2:
+  image:
+    name: pierredb/ni-apt-grader:latest
+    pull_policy: always
+  stage: test
+  #needs: ["test"]
+  script:
+    - export PROJECT_DIR=$PWD
+    - cd /grader
+    - ./grade --task 2 $PROJECT_DIR/code-coverage
