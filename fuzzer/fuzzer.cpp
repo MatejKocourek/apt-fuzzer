@@ -401,7 +401,7 @@ struct AddressSanitizerError : public ReturnCodeError
                 //std::string test = "#3 0x64161615 in main tests/minimization/main.c:17\n#4 0x6456564...";
                 if (std::regex_search(executionResult.stderr_output, match2, locationRegex)) {
                     res.emplace(match[1], match2[1], match2[2]);
-                    std::cerr << "File: " << match2[1] << ", line: " << match2[2] << std::endl;
+                    //std::cerr << "File: " << match2[1] << ", line: " << match2[2] << std::endl;
                 }
             }
 
@@ -707,15 +707,15 @@ static void exportStatistics(std::ofstream& output)
 static void saveStatistics()
 {
     auto path = resultFolder / "stats.json";
-    std::cerr << "Saving statistics to " << path << std::endl;
+    //std::cerr << "Saving statistics to " << path << std::endl;
 
     std::ofstream output(path);
     exportStatistics(output);
 
     if (!output)
         std::cerr << "Error saving statistics!" << std::endl;
-    else
-        std::cerr << "Stats saved." << std::endl;
+    //else
+      //  std::cerr << "Stats saved." << std::endl;
 }
 
 #ifndef _MSC_VER
@@ -829,7 +829,7 @@ void fuzz()
 
                 assert(err); //Should never be nullptr
 
-                std::cerr << "Detected error " << err->errorName() /*<< " for input " << pop.first*/ << std::endl;
+                
                 err->incrementCounter();
 
 
@@ -840,11 +840,13 @@ void fuzz()
                     {
                         if (*err == *uniqueResults[i])//Error already logged
                         {
-                            std::cerr << "This error was already found, nothing new" << std::endl;
+                            //std::cerr << "This error was already found, nothing new" << std::endl;
                             goto alreadyFound;
                         }
 
                     }
+                    std::cerr << "Detected new error " << err->errorName() << " for input " << pop.first << std::endl;
+                    err->bugInfo(std::cerr);
                     uniqueResults.push_back(std::move(err));
                 }
             }
