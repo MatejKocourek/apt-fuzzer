@@ -85,5 +85,6 @@ grade-task2:
   #needs: ["test"]
   script:
     - export PROJECT_DIR=$PWD
+    - ls
     - cd /grader
     - ./grade --task 2 $PROJECT_DIR/fuzzer
