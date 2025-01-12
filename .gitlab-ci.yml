@@ -23,7 +23,7 @@ build-job:
 test-task1:
   stage: test
   dependencies:
-    - build-jobs
+    - build-job
   #rules:
     #- changes: 
         #- code-coverage/* # Only run it if you changed something to task 1
