@@ -10,8 +10,10 @@ build-job:
     - mkdir -p fuzzer/build && touch fuzzer/build/test
     - cd code-coverage
     - make build
+    - cd ..
     - cd fuzzer
     - make build
+    - cd ..
 
   artifacts:
     paths:
@@ -22,7 +24,7 @@ build-job:
 test-task1:
   stage: test
   dependencies:
-    - build-job
+    - build-jobs
   #rules:
     #- changes: 
         #- code-coverage/* # Only run it if you changed something to task 1
