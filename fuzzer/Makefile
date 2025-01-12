@@ -25,7 +25,7 @@ test:
 run: build
 	@echo "Build dir is $(BUILD_DIR)"
 	@echo "Running fuzzer on $(FUZZED_PROG) and placing results to $(RESULT_FUZZ)"
-	@cd $(BUILD_DIR) && ./fuzzer $(FUZZED_PROG) $(RESULT_FUZZ) $(MINIMIZE) $(INPUT)
+	@cd $(BUILD_DIR) && ./fuzzer $(FUZZED_PROG) $(RESULT_FUZZ) $(MINIMIZE) $(INPUT) $(TIMEOUT) $(NB_KNOWN_BUGS)
 clean:
 	@echo "Cleaning build..."
 	@rm -fr $(BUILD_DIR)

@@ -37,13 +37,13 @@ task2-test:
   dependencies:
     - build-job
   script:
-    - apt-get update -y && apt install -y make cmake g++ lcov
+    - apt-get update -y && apt install -y make cmake g++ lcov libboost-all-dev
     - cd fuzzer
     - make test
   coverage: "/^Coverage: ([0-9]{1,3})%$/"
   artifacts:
     paths:
-      - "code-coverage/coverage.txt" # contains just the coverage percentage as a number
+      - "fuzzer/coverage.txt" # contains just the coverage percentage as a number
 
 task1-benchmark:
   stage: test

@@ -26,8 +26,8 @@ static std::atomic<size_t> nb_before_min = 0;
 static std::atomic<size_t> nb_failed_runs = 0;
 static std::atomic<size_t> nb_hanged_runs = 0;
 
-StatisticsMemory<uint32_t> statisticsExecution;
-StatisticsMemory<uint32_t> statisticsMinimization;
+StatisticsMemory<double> statisticsExecution;
+StatisticsMemory<double> statisticsMinimization;
 StatisticsMemory<uint32_t> statisticsMinimizationSteps;
 
 std::atomic<bool> keepRunning = true;
@@ -66,7 +66,7 @@ struct ExecutionResult {
     std::string stdout_output;
     std::string stderr_output;
     bool timed_out;
-    std::chrono::milliseconds execution_time;
+    std::chrono::duration<double, std::milli> execution_time;
 
     //ExecutionResult() = default;
 
@@ -203,7 +203,7 @@ ExecutionResult execute_with_timeout(const ExecutionInput& executionInput) {
     auto end = std::chrono::high_resolution_clock::now();
 
     // Retrieve the outputs and return code
-    return { std::move(process.exit_code()), std::move(stdout_future.get()), std::move(stderr_future.get()), false, std::chrono::duration_cast<std::chrono::milliseconds>(end - start) };
+    return { std::move(process.exit_code()), std::move(stdout_future.get()), std::move(stderr_future.get()), false, std::chrono::duration_cast<std::chrono::duration<double, std::milli>>(end - start) };
 }
 
 struct DetectedError
@@ -276,7 +276,7 @@ struct ReturnCodeError : public DetectedError
 
     virtual std::ostream& bugInfo(std::ostream& os) const override
     {
-        os << "\"" << returnCode << "\"";
+        os << returnCode;
         return os;
     }
 
@@ -295,7 +295,7 @@ struct TimeoutError final : public DetectedError
         return true;// timeout == other.timeout;
     }
 
-    TimeoutError(std::chrono::milliseconds timeout) : timeout(std::move(timeout)){}
+    TimeoutError(std::chrono::duration<double, std::milli> timeout) : timeout(std::move(timeout)){}
     TimeoutError(TimeoutError&&) = default;
     TimeoutError(const TimeoutError&) = default;
 
@@ -341,7 +341,7 @@ struct TimeoutError final : public DetectedError
 
     virtual std::ostream& bugInfo(std::ostream& os) const override
     {
-        os << "\"" << timeout.count() << "\"";
+        os << timeout.count();
         return os;
     }
 
@@ -350,7 +350,7 @@ struct TimeoutError final : public DetectedError
         nb_hanged_runs.fetch_add(1, std::memory_order_relaxed);
     }
 
-    std::chrono::milliseconds timeout;
+    std::chrono::duration<double, std::milli> timeout;
 };
 
 static const std::regex errorTypeRegex("ERROR: AddressSanitizer: (\\b\\w[-\\w]*\\b)");
@@ -400,7 +400,14 @@ struct AddressSanitizerError : public ReturnCodeError
 
                 //std::string test = "#3 0x64161615 in main tests/minimization/main.c:17\n#4 0x6456564...";
                 if (std::regex_search(executionResult.stderr_output, match2, locationRegex)) {
-                    res.emplace(match[1], match2[1], match2[2]);
+                    std::string asan;
+                    if (match[1] == "heap-buffer-overflow")
+                        asan = "heap";
+                    else if (match[1] == "stack-buffer-overflow")
+                        asan = "stack";
+                    else
+                        asan = match[1];
+                    res.emplace(std::move(asan), match2[1], match2[2]);
                     //std::cerr << "File: " << match2[1] << ", line: " << match2[2] << std::endl;
                 }
             }
@@ -422,9 +429,9 @@ struct AddressSanitizerError : public ReturnCodeError
     virtual std::ostream& bugInfo(std::ostream& os) const override
     {
         os << "{"
-                "\"file\":" << file << "\","
-                "\"line\":" << line << "\","
-                "\"kind\":" << asanType << "\""
+                "\"file\":\"" << file << "\","
+                "\"line\":" << line << ","
+                "\"kind\":\"" << asanType << "\""
               "}"
         ;
         return os;
@@ -612,36 +619,27 @@ struct CrashReport
 {
     std::string input;
     DetectedError* detectedError;
-    std::chrono::milliseconds execution_time;
+    std::chrono::duration<double,std::milli> execution_time;
     size_t unminimized_size;
     size_t nb_steps;
-    std::chrono::milliseconds minimization_time;
+    std::chrono::duration<double, std::milli> minimization_time;
 };
 
 
-void exportReport(const CrashReport& report, std::ofstream& output)
+void exportReport(const CrashReport& report, std::ostream& output)
 {
     output <<
-        "{"
+     "{"
         "\"input\":"            "\"" << report.input << "\","
         "\"oracle\":"           "\"" << report.detectedError->errorName() << "\","
         "\"bug_info\":";  report.detectedError->bugInfo(output) << ","
         "\"execution_time\":"   "\"" << report.execution_time.count() << "\""
-        ;
-
-    if (report.nb_steps != 0)
-    {
-        output <<
-            ",\"minimization\":{"
-            "\"unminimized_size\":" "\"" << report.unminimized_size << "\","
-            "\"nb_steps\":"         "\"" << report.nb_steps << "\","
-            "\"execution_time\":"   "\"" << report.execution_time.count() << "\""
-            "}"
-            ;
-    }
-
-    output <<
-        "}";
+        ",\"minimization\":{"
+            "\"unminimized_size\":" << report.unminimized_size << ","
+            "\"nb_steps\":" << report.nb_steps << ","
+            "\"execution_time\":" << report.minimization_time.count() << ""
+        "}"
+     "}";
 }
 static void saveReport(const CrashReport& report, const std::string& name, const std::filesystem::path& resultFolder)
 {
@@ -660,44 +658,50 @@ static void saveReport(const CrashReport& report, const std::string& name, const
 
     exportReport(report, output);
 
+    std::cout << "New error report: \n";
+    exportReport(report, std::cout);
+    std::cout << std::endl;
+
     if (!output)
         std::cerr << "Error saving report!" << std::endl;
 }
 
-static std::string fuzzed_prog;
-static std::filesystem::path resultFolder;
-static bool minimize;
+static std::string FUZZED_PROG;
+static std::filesystem::path RESULT_FUZZ;
+static bool MINIMIZE;
 static std::string_view fuzzInputType;
+static std::chrono::seconds TIMEOUT;
+static size_t NB_KNOWN_BUGS;
 
 
 static std::mutex m;
 static std::vector<std::unique_ptr<DetectedError>> uniqueResults;
 
-static void exportStatistics(std::ofstream& output)
+static void exportStatistics(std::ostream& output)
 {
     std::lock_guard guard(m);
     output <<
     "{"
         "\"fuzzer_name\":"              "\"kocoumat\","
-        "\"fuzzed_program\":"           "\"" << fuzzed_prog <<"\","
-        "\"nb_runs\":"                  "\"" << statisticsExecution.count() << "\","
-        "\"nb_failed_runs\":"           "\"" << nb_failed_runs.load(std::memory_order_relaxed) << "\","
-        "\"nb_hanged_runs\":"           "\"" << nb_hanged_runs.load(std::memory_order_relaxed) << "\","
+        "\"fuzzed_program\":"           "\"" << FUZZED_PROG <<"\","
+        "\"nb_runs\":"                   << statisticsExecution.count() << ","
+        "\"nb_failed_runs\":"            << nb_failed_runs.load(std::memory_order_relaxed) << ","
+        "\"nb_hanged_runs\":"            << nb_hanged_runs.load(std::memory_order_relaxed) << ","
         "\"execution_time\": {"
-            "\"average\":"              "\"" << statisticsExecution.avg() << "\","
-            "\"median\":"               "\"" << statisticsExecution.median() << "\","
-            "\"min\":"                  "\"" << statisticsExecution.min() << "\","
-            "\"max\":"                  "\"" << statisticsExecution.max() << "\""
+            "\"average\":"               << statisticsExecution.avg() << ","
+            "\"median\":"                << statisticsExecution.median() << ","
+            "\"min\":"                   << statisticsExecution.min() << ","
+            "\"max\":"                   << statisticsExecution.max() <<
         "},"
-        "\"nb_unique_failures\":"       "\"" << uniqueResults.size() << "\","
+        "\"nb_unique_failures\":"        << uniqueResults.size() << ","
         "\"minimization\": {"
-            "\"before\":"               "\"" << nb_before_min.load(std::memory_order_relaxed) << "\","
-            "\"avg_steps\":"            "\"" << statisticsMinimizationSteps.avg() << "\","
+            "\"before\":"                << nb_before_min.load(std::memory_order_relaxed) << ","
+            "\"avg_steps\":"             << std::lround(statisticsMinimizationSteps.avg()) << ","
             "\"execution_time\": {"
-                "\"average\":"          "\"" << statisticsMinimization.avg() << "\","
-                "\"median\":"           "\"" << statisticsMinimization.median() << "\","
-                "\"min\":"              "\"" << statisticsMinimization.min() << "\","
-                "\"max\":"              "\"" << statisticsMinimization.max() << "\""
+                "\"average\":"           << statisticsMinimization.avg() << ","
+                "\"median\":"            << statisticsMinimization.median() << ","
+                "\"min\":"               << statisticsMinimization.min() << ","
+                "\"max\":"               << statisticsMinimization.max() <<
             "}"
         "}"
     "}"
@@ -706,11 +710,15 @@ static void exportStatistics(std::ofstream& output)
 
 static void saveStatistics()
 {
-    auto path = resultFolder / "stats.json";
+    auto path = RESULT_FUZZ / "stats.json";
     //std::cerr << "Saving statistics to " << path << std::endl;
 
     std::ofstream output(path);
     exportStatistics(output);
+
+    std::cout << "Currents stats: \n";
+    exportStatistics(std::cout);
+    std::cout << std::endl;
 
     if (!output)
         std::cerr << "Error saving statistics!" << std::endl;
@@ -782,17 +790,17 @@ void fuzz()
     if (fuzzInputType == "stdin")
     {
         //std::cerr << "Using cin as input" << std::endl;
-        executionInput = std::make_unique<CinInput>(fuzzed_prog, timeout);
+        executionInput = std::make_unique<CinInput>(FUZZED_PROG, timeout);
     }
     else
     {
         //std::cerr << "Using file as input" << std::endl;
-        executionInput = std::make_unique<FileInput>(fuzzed_prog, timeout, std::string(fuzzInputType));
+        executionInput = std::make_unique<FileInput>(FUZZED_PROG, timeout, std::string(fuzzInputType));
     }
 
     std::stack<std::pair<std::string, ExecutionResult>> unprocessedErrors;
 
-    while (keepRunning)
+    while (keepRunning && uniqueResults.size() < NB_KNOWN_BUGS)
     {
         auto input = generateRandomString(dist(gen), 33, 126);//1,255
         //std::cerr << "generated random string:" << input << std::endl;
@@ -804,7 +812,7 @@ void fuzz()
         auto res = execute_with_timeout(*executionInput);
         auto end = std::chrono::high_resolution_clock::now();
 
-        auto execution_time = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
+        auto execution_time = std::chrono::duration_cast<std::chrono::duration<double,std::milli>>(end - start);
 
         statisticsExecution.addNumber(execution_time.count());
 
@@ -817,7 +825,7 @@ void fuzz()
             //std::cerr << "NO Detected error for input " << input << std::endl;
         }
 
-        while (!unprocessedErrors.empty() && keepRunning)
+        while (!unprocessedErrors.empty() && keepRunning && uniqueResults.size() < NB_KNOWN_BUGS)
         {
             auto pop = std::move(unprocessedErrors.top());
             unprocessedErrors.pop();
@@ -845,8 +853,7 @@ void fuzz()
                         }
 
                     }
-                    std::cerr << "Detected new error " << err->errorName() << " for input " << pop.first << std::endl;
-                    err->bugInfo(std::cerr);
+                    //std::cerr << "Detected new error " << err->errorName() << " for input " << pop.first << std::endl;
                     uniqueResults.push_back(std::move(err));
                 }
             }
@@ -860,24 +867,26 @@ void fuzz()
             report.execution_time = pop.second.execution_time;
             report.detectedError = uniqueResults[errorCount].get();
 
-            if (minimize)
+            report.minimization_time = std::chrono::milliseconds(0);
+
+            if (MINIMIZE)
             {
                 auto start = std::chrono::high_resolution_clock::now();
                 report.input = minimizeInput(pop.first, *report.detectedError, *executionInput, report.nb_steps, unprocessedErrors);
                 auto end = std::chrono::high_resolution_clock::now();
 
-                report.minimization_time = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
+                report.minimization_time = std::chrono::duration_cast<std::chrono::duration<double, std::milli>>(end - start);
 
                 statisticsMinimization.addNumber(report.minimization_time.count());
                 statisticsMinimizationSteps.addNumber(report.nb_steps);
 
-                std::cerr << "Minimized to: " << pop.first << std::endl;
+                //std::cerr << "Minimized to: " << pop.first << std::endl;
             }
             else
                 report.input = std::move(pop.first);
 
 
-            saveReport(report, std::to_string(errorCount) + ".json", resultFolder);
+            saveReport(report, std::to_string(errorCount) + ".json", RESULT_FUZZ);
 
             alreadyFound:
             continue;
@@ -887,20 +896,11 @@ void fuzz()
     }
 }
 
-void statsLoop()
-{
-    while (keepRunning)
-    {
-        std::this_thread::sleep_for(std::chrono::milliseconds(5000));
-        saveStatistics();
-    }
-}
-
 
 int main(int argc, char* argv[])
 {
     std::ios_base::sync_with_stdio(false);
-    if (argc <= 4)
+    if (argc <= 6)
     {
         std::cerr << "Provide arguments" << std::endl;
         return 1;
@@ -915,32 +915,49 @@ int main(int argc, char* argv[])
     }
 #endif
 
-    fuzzed_prog = argv[1];
-    resultFolder = argv[2];
-    minimize = std::atoi(argv[3]) != 0;
+    FUZZED_PROG = argv[1];
+    RESULT_FUZZ = argv[2];
+    MINIMIZE = std::atoi(argv[3]) != 0;
     fuzzInputType = argv[4];
+    TIMEOUT = std::chrono::seconds(std::atoi(argv[5]));
+    NB_KNOWN_BUGS = std::atoi(argv[6]);
 
-    if (!std::filesystem::exists(fuzzed_prog))
+    if (!std::filesystem::exists(FUZZED_PROG))
     {
         std::cerr << "Program to fuzz does not exist" << std::endl;
         return 1;
     }
 
 
-    std::filesystem::create_directories(resultFolder);
+    std::filesystem::create_directories(RESULT_FUZZ);
+    std::filesystem::create_directories(RESULT_FUZZ / "crashes");
+    std::filesystem::create_directories(RESULT_FUZZ / "hangs");
 
     {
         std::vector<std::jthread> threads;// (std::thread::hardware_concurrency(), std::jthread(&fuzz));
         auto threadCount = 1;// std::thread::hardware_concurrency();
-        threads.reserve(threadCount);
+        threads.reserve(threadCount-1);
 
         std::cerr << "Running " << threadCount << " fuzzers" << std::endl;
 
-        for (size_t i = 0; i < threadCount; i++)
+        for (size_t i = 0; i < threadCount-1; i++)
             threads.emplace_back(fuzz);
 
-        std::jthread statsThread(statsLoop);
 
+        //std::jthread worker([&]() {
+        //    std::this_thread::sleep_for(TIMEOUT); // Wait for the set time
+        //    keepRunning = false;
+        //    std::cerr << "Timeout reached, ending." << std::endl;
+        //    });
+        std::jthread updateStats([&]() {
+            while (keepRunning)
+            {
+                std::this_thread::sleep_for(std::chrono::seconds(5));
+                saveStatistics();
+            }
+        });
+
+        fuzz();
 
         //std::cin.get();
         //keepRunning = false;
