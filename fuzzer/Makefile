@@ -2,8 +2,8 @@
 CC = gcc
 
 # Directories
-BUILD_DIR = $(PWD)/build
-BUILD_DIR_TEST = $(PWD)/build_t
+BUILD_DIR = $(PROJECT_DIR)/fuzzer/build
+BUILD_DIR_TEST = $(PROJECT_DIR)/fuzzer/build/test
 
 # The 'build' target builds the program using CMake
 build:
