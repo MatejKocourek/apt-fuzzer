@@ -2,6 +2,9 @@
 CC = gcc
 
 # Directories
+
+PROJECT_DIR ?= $(shell dirname $(PWD))
+
 BUILD_DIR = $(PROJECT_DIR)/fuzzer/build
 BUILD_DIR_TEST = $(PROJECT_DIR)/fuzzer/build/test
 
