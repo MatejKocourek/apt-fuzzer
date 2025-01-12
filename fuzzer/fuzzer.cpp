@@ -398,8 +398,8 @@ struct AddressSanitizerError : public ReturnCodeError
 
                 std::smatch match2;
 
-                std::string test = "#3 0x64161615 in main tests/minimization/main.c:17\n#4 0x6456564...";
-                if (std::regex_search(test, match2, locationRegex)) {
+                //std::string test = "#3 0x64161615 in main tests/minimization/main.c:17\n#4 0x6456564...";
+                if (std::regex_search(executionResult.stderr_output, match2, locationRegex)) {
                     res.emplace(match[1], match2[1], match2[2]);
                     std::cerr << "File: " << match2[1] << ", line: " << match2[2] << std::endl;
                 }
@@ -889,7 +889,7 @@ void statsLoop()
 {
     while (keepRunning)
     {
-        std::this_thread::sleep_for(std::chrono::milliseconds(250));
+        std::this_thread::sleep_for(std::chrono::milliseconds(5000));
         saveStatistics();
     }
 }

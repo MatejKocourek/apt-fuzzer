@@ -2,10 +2,13 @@
 CC = gcc
 
 # Directories
-BUILD_DIR = $(PWD)/build
-BUILD_DIR_TEST = $(PWD)/build_t
-RUN_DIR = $(PWD)/instrumented
-TEST_DIR = $(PWD)/tests
+
+PROJECT_DIR ?= $(shell dirname $(PWD))
+
+BUILD_DIR = $(PROJECT_DIR)/code-coverage/build
+BUILD_DIR_TEST = $(PROJECT_DIR)/code-coverage/build_t
+RUN_DIR = $(PROJECT_DIR)/code-coverage/instrumented
+TEST_DIR = $(PROJECT_DIR)/code-coverage/tests
 
 C_FILES=$(find $(TARGET_COV) -type f -name "*.c")
 
@@ -13,7 +16,7 @@ C_FILES=$(find $(TARGET_COV) -type f -name "*.c")
 build:
 	@echo "Building the program using CMake..."
 	@mkdir -p $(BUILD_DIR)
-	@cd $(BUILD_DIR) && cmake .. && make
+	@cd $(BUILD_DIR) && cmake -DCMAKE_BUILD_TYPE=Release .. && make
 
 # The 'test' target runs the test suite and generates the coverage report
 test:
