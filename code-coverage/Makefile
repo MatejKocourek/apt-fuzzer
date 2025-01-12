@@ -16,7 +16,7 @@ C_FILES=$(find $(TARGET_COV) -type f -name "*.c")
 build:
 	@echo "Building the program using CMake..."
 	@mkdir -p $(BUILD_DIR)
-	@cd $(BUILD_DIR) && cmake -DCMAKE_BUILD_TYPE=Release .. && make
+	@cd $(BUILD_DIR) && cmake .. && make
 
 # The 'test' target runs the test suite and generates the coverage report
 test:
@@ -27,8 +27,9 @@ test:
 
 # The 'benchmark' target runs a microbenchmark and prints the speedup
 benchmark: build
-	@echo "Compiling files for benchmarking..."
+	@echo "Annotating files for benchmarking..."
 	@cd tests/fibonacci/ && $(BUILD_DIR)/code-coverage fibonacci.c
+	@echo "Compiling files for benchmarking..."
 	@$(CC) -O0 tests/fibonacci/0_instrumented.c -o tests/fibonacci/fibonacci-instr
 	@$(CC) -O0 tests/fibonacci/fibonacci.c -o tests/fibonacci/fibonacci-og
 	@echo "Running benchmarks..."
@@ -63,3 +64,10 @@ run: build
 	@cd $(RUN_DIR) && ./instr_prog $(ARGS_COV)
 	@cd $(RUN_DIR) && mv coverage.lcov $(TARGET_COV)/coverage.lcov
 	@rm -fr $(RUN_DIR)
+
+clean:
+	@echo "Cleaning build..."
+	@rm -fr $(BUILD_DIR)
+	@rm -fr $(BUILD_DIR_TEST)
+	@rm -fr $(RUN_DIR)
+	

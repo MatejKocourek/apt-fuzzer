@@ -393,7 +393,7 @@ struct AddressSanitizerError : public ReturnCodeError
             std::smatch match;
             if (std::regex_search(executionResult.stderr_output, match, errorTypeRegex))
             {
-                std::cerr << "Caught ASAN " << match[1]<< " in " << std::endl;
+                //std::cerr << "Caught ASAN " << match[1] << " in " << std::endl;
                 //std::cerr << executionResult.stderr_output << std::endl;
 
                 std::smatch match2;
@@ -829,7 +829,7 @@ void fuzz()
 
                 assert(err); //Should never be nullptr
 
-                std::cerr << "Detected error " << err->errorName() << " for input " << pop.first << std::endl;
+                std::cerr << "Detected error " << err->errorName() /*<< " for input " << pop.first*/ << std::endl;
                 err->incrementCounter();
 
 

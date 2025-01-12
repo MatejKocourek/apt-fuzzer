@@ -65,7 +65,7 @@ task1-grade:
     #- changes: 
         #- code-coverage/* # Only run it if you changed something to task 1
   stage: test
-  needs: ["task1-test", "task1-benchmark"]
+  #needs: ["task1-test", "task1-benchmark"]
   script:
     - apt-get update -y && apt install -y make cmake g++ lcov git
     - git submodule update --init --recursive
