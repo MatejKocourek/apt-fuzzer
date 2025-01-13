@@ -63,11 +63,9 @@ run: build
 	@cd $(RUN_DIR) && $(CC) *_instrumented.c -o instr_prog
 	@cd $(RUN_DIR) && ./instr_prog $(ARGS_COV)
 	@cd $(RUN_DIR) && mv coverage.lcov $(TARGET_COV)/coverage.lcov
-	@rm -fr $(RUN_DIR)
 
 clean:
 	@echo "Cleaning build..."
 	@rm -fr $(BUILD_DIR)
 	@rm -fr $(BUILD_DIR_TEST)
 	@rm -fr $(RUN_DIR)
-	
