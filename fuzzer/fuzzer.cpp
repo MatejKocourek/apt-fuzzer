@@ -193,14 +193,14 @@ ExecutionResult execute_with_timeout(const ExecutionInput& executionInput) {
         return oss.str();
         });
 
+    auto end = std::chrono::high_resolution_clock::now();
+
     // Wait for process completion with a timeout.
     bool finished_in_time = process.wait_for(executionInput.timeout);
     if (!finished_in_time) {
         process.terminate();  // Kill the process if it times out
-        return { -1, "", "", true };  // Indicate a timeout occurred
+        return { -1, "", "", true, std::chrono::duration_cast<std::chrono::duration<double, std::milli>>(end - start) };  // Indicate a timeout occurred
     }
-
-    auto end = std::chrono::high_resolution_clock::now();
 
     // Retrieve the outputs and return code
     return { std::move(process.exit_code()), std::move(stdout_future.get()), std::move(stderr_future.get()), false, std::chrono::duration_cast<std::chrono::duration<double, std::milli>>(end - start) };
@@ -632,8 +632,8 @@ void exportReport(const CrashReport& report, std::ostream& output)
      "{"
         "\"input\":"            "\"" << report.input << "\","
         "\"oracle\":"           "\"" << report.detectedError->errorName() << "\","
-        "\"bug_info\":";  report.detectedError->bugInfo(output) << ","
-        "\"execution_time\":"   "\"" << report.execution_time.count() << "\""
+        "\"bug_info\":";                report.detectedError->bugInfo(output) << ","
+        "\"execution_time\":"        << report.execution_time.count() << 
         ",\"minimization\":{"
             "\"unminimized_size\":" << report.unminimized_size << ","
             "\"nb_steps\":" << report.nb_steps << ","
