@@ -623,7 +623,7 @@ static std::vector<std::unique_ptr<DetectedError>> uniqueResults;
 
 static void exportStatistics(std::ostream& output)
 {
-    std::lock_guard guard(m);
+    //std::lock_guard guard(m);
     output <<
     "{"
         "\"fuzzer_name\":"              "\"kocoumat\","
@@ -735,7 +735,7 @@ void dealWithResult(const std::string_view& input, ExecutionResult result, Execu
             return; //OK, no error
 
         {
-            std::unique_lock lock(m);
+            //std::unique_lock lock(m);
             errorCount = uniqueResults.size();
             for (size_t i = 0; i < uniqueResults.size(); i++)
             {
