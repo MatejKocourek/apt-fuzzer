@@ -819,7 +819,7 @@ void fuzz()
     
     while (keepRunning)
     {
-        std::string input = (nb_before_min%2 == 0) ? generateRandomString(dist(gen), 33, 126) : generateRandomNum(1, 1000000);
+        std::string input = (statisticsExecution.count() % 2 == 0) ? generateRandomString(dist(gen), 33, 126) : generateRandomNum(1, 1000000);
         //std::cerr << "generated random string:" << input << std::endl;
         //auto input = generateRandomNum(1, 1000000);
 
