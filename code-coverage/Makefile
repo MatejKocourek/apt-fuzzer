@@ -6,11 +6,9 @@ CC = gcc
 PROJECT_DIR ?= $(shell dirname $(PWD))
 
 BUILD_DIR = $(PROJECT_DIR)/code-coverage/build
-BUILD_DIR_TEST = $(PROJECT_DIR)/code-coverage/build_t
-RUN_DIR = $(PROJECT_DIR)/code-coverage/instrumented
+BUILD_DIR_TEST = $(PROJECT_DIR)/code-coverage/build/test
 TEST_DIR = $(PROJECT_DIR)/code-coverage/tests
 
-C_FILES=$(find $(TARGET_COV) -type f -name "*.c")
 
 # The 'build' target builds the program using CMake
 build:
@@ -58,13 +56,11 @@ benchmark: build
 # The 'run' target runs the code coverage tool on the C file(s) specified by the TARGET_COV environment variable
 run: build
 	@echo "Running code coverage tool on files in $(TARGET_COV)/*.c"
-#	@mkdir -p $(RUN_DIR)
-	@cd $(TARGET_COV) && $(BUILD_DIR)/code-coverage $(TARGET_COV)/*.c
+	@cd $(TARGET_COV) && $(BUILD_DIR)/code-coverage *.c
 	@cd $(TARGET_COV) && $(CC) *_instrumented.c -o instr_prog
 	@cd $(TARGET_COV) && ./instr_prog $(ARGS_COV)
 	@cd $(TARGET_COV) && cat coverage.lcov
 clean:
 	@echo "Cleaning build..."
-	@rm -fr $(BUILD_DIR)
 	@rm -fr $(BUILD_DIR_TEST)
-#	@rm -fr $(RUN_DIR)
+	@rm -fr $(BUILD_DIR)
