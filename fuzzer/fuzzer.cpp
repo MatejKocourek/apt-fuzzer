@@ -407,7 +407,8 @@ struct AddressSanitizerError : public ReturnCodeError
                         asan = "stack";
                     else
                         asan = match[1];
-                    res.emplace(std::move(asan), match2[1], match2[2]);
+
+                    res.emplace(std::move(asan), std::filesystem::path(std::string(match2[1])).filename().string(), match2[2]);
                     //std::cerr << "File: " << match2[1] << ", line: " << match2[2] << std::endl;
                 }
             }
@@ -779,8 +780,8 @@ BOOL WINAPI consoleHandler(DWORD signal) {
 
 void fuzz()
 {
-    constexpr size_t minSize = 0;
-    constexpr size_t maxSize = 1000;
+    constexpr size_t minSize = 1;
+    constexpr size_t maxSize = 1024;
     constexpr std::chrono::milliseconds timeout = std::chrono::seconds(5);
 
     std::uniform_int_distribution<size_t> dist(minSize, maxSize);
