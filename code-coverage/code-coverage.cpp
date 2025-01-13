@@ -36,6 +36,7 @@ int main(int argc, char* argv[]) {
 			try
 			{
 				fileInstruments.emplace_back(loadFile(argv[fileId]), argv[fileId], fileId-1);
+				std::cerr << "Loaded file " << argv[fileId] << std::endl;
 			}
 			catch (const std::exception& e)
 			{
