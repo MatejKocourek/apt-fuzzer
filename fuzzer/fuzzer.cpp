@@ -32,6 +32,23 @@ StatisticsMemory<uint32_t> statisticsMinimizationSteps;
 
 std::atomic<bool> keepRunning = true;
 
+
+std::string generateRandomAlphaNum(std::size_t size) {
+    constexpr char alphaNumerical[] = { '0','1','2','3','4','5','6','7','8','9','A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q','R','S','T','U','V','W','X','Y','Z','a','b','c','d','e','f','g','h','i','j','k','l','m','n','o','p','q','r','s','t','u','v','w','x','y','z' };
+    std::uniform_int_distribution<int> dist(0, sizeof(alphaNumerical)-1);
+
+    std::string randomString;
+    randomString.reserve(size);
+
+    for (std::size_t i = 0; i < size; ++i) {
+        char tmp = alphaNumerical[dist(gen)];
+
+        randomString += tmp; // Generate a random character
+    }
+
+    return randomString;
+}
+
 std::string generateRandomString(std::size_t size, int minChar, int maxChar) {
     if (minChar > maxChar) [[unlikely]]
         throw std::invalid_argument("min must be less than or equal to max");
@@ -353,7 +370,7 @@ struct TimeoutError final : public DetectedError
 };
 
 static const std::regex errorTypeRegex("ERROR: AddressSanitizer: (\\b\\w[-\\w]*\\b)");
-static const std::regex locationRegex(" in main (\\S+):(\\d+)");//"(at 0x[0-9A-Fa-f]+.*:(\\d+))");
+static const std::regex locationRegex("(main.c):(\\d+)");//"(at 0x[0-9A-Fa-f]+.*:(\\d+))");
 
 struct AddressSanitizerError : public ReturnCodeError
 {
@@ -406,8 +423,8 @@ struct AddressSanitizerError : public ReturnCodeError
                         asan = "stack";
                     else
                         asan = match[1];
-
-                    res.emplace(std::move(asan), std::filesystem::path(std::string(match2[1])).filename().string(), match2[2]);
+                    //std::filesystem::path(std::string(match2[1])).filename().string()
+                    res.emplace(std::move(asan), match2[1], match2[2]);
                     //std::cerr << "File: " << match2[1] << ", line: " << match2[2] << std::endl;
                 }
             }
@@ -780,7 +797,7 @@ BOOL WINAPI consoleHandler(DWORD signal) {
 void fuzz()
 {
     constexpr size_t minSize = 1;
-    constexpr size_t maxSize = 1024;
+    constexpr size_t maxSize = 2048;
     constexpr std::chrono::milliseconds timeout = std::chrono::seconds(5);
 
     std::uniform_int_distribution<size_t> dist(minSize, maxSize);
@@ -803,7 +820,6 @@ void fuzz()
     while (keepRunning)
     {
         std::string input = (nb_before_min%2 == 0) ? generateRandomString(dist(gen), 33, 126) : generateRandomNum(1, 1000000);
-        //auto input = generateRandomString(dist(gen), 33, 126);//1,255
         //std::cerr << "generated random string:" << input << std::endl;
         //auto input = generateRandomNum(1, 1000000);
 
@@ -936,13 +952,11 @@ int main(int argc, char* argv[])
 
     {
         std::vector<std::jthread> threads;// (std::thread::hardware_concurrency(), std::jthread(&fuzz));
-        auto threadCount = 1;// std::thread::hardware_concurrency();
-        threads.reserve(threadCount-1);
-
-        //std::cerr << "hardware::concurrency=" << std::thread::hardware_concurrency() << std::endl;
+        auto threadCount = std::thread::hardware_concurrency();
 
         std::cerr << "Running " << threadCount << " fuzzers" << std::endl;
 
+        threads.reserve(threadCount - 1);
         for (size_t i = 0; i < threadCount-1; i++)
             threads.emplace_back(fuzz);
 
