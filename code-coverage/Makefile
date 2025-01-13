@@ -60,7 +60,7 @@ benchmark: build
 run: build
 	@echo "Running code coverage tool on *.c and *.h files in $(TARGET_COV)"
 	@mkdir -p $(RUN_DIR)
-	@cd $(RUN_DIR) && $(BUILD_DIR)/code-coverage C_FILES
+	@cd $(RUN_DIR) && $(BUILD_DIR)/code-coverage $(C_FILES)
 	@cd $(RUN_DIR) && $(CC) *.c -o instr_prog
 	@cd $(RUN_DIR) && ./instr_prog $(ARGS_COV)
 	@cd $(RUN_DIR) && mv coverage.lcov $(TARGET_COV)/coverage.lcov
