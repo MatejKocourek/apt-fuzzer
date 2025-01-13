@@ -215,17 +215,22 @@ ExecutionResult execute_with_timeout(const ExecutionInput& executionInput) {
     bool finished_in_time = process.wait_for(executionInput.timeout);
     if (!finished_in_time) {
         process.terminate();  // Kill the process if it times out
-        return { -1, "", "", true, std::chrono::duration_cast<std::chrono::duration<double, std::milli>>(std::chrono::high_resolution_clock::now() - start) };  // Indicate a timeout occurred
+        auto duration = std::chrono::duration_cast<std::chrono::duration<double, std::milli>>(std::chrono::high_resolution_clock::now() - start);
+        statisticsExecution.addNumber(duration.count());
+        nb_hanged_runs.fetch_add(1, std::memory_order_relaxed);
+        return { -1, "", "", true, duration };  // Indicate a timeout occurred
     }
 
+    auto duration = std::chrono::duration_cast<std::chrono::duration<double, std::milli>>(std::chrono::high_resolution_clock::now() - start);
+    statisticsExecution.addNumber(duration.count());
+    if(process.exit_code() != 0)
+        nb_failed_runs.fetch_add(1, std::memory_order_relaxed);
     // Retrieve the outputs and return code
-    return { std::move(process.exit_code()), std::move(stdout_future.get()), std::move(stderr_future.get()), false, std::chrono::duration_cast<std::chrono::duration<double, std::milli>>(std::chrono::high_resolution_clock::now() - start) };
+    return { std::move(process.exit_code()), std::move(stdout_future.get()), std::move(stderr_future.get()), false, duration };
 }
 
 struct DetectedError
 {
-    //bool operator==(const DetectedError&) const = default;
-
     virtual bool isErrorEncountered(const ExecutionResult& executionResult) const = 0;
 
     virtual const char* errorName() const = 0;
@@ -459,78 +464,6 @@ struct AddressSanitizerError : public ReturnCodeError
     const std::string line;
 };
 
-//struct HeapBufferError final : AddressSanitizerError
-//{
-//    HeapBufferError(int line) : AddressSanitizerError(std::move(line)) {}
-//
-//    HeapBufferError(HeapBufferError&&) = default;
-//    HeapBufferError(const HeapBufferError&) = default;
-//
-//    static std::optional<HeapBufferError> tryDetectError(const ExecutionResult& executionResult)
-//    {
-//        std::optional<HeapBufferError> res;
-//
-//        if (executionResult.return_code == 1)
-//        {
-//            std::smatch match;
-//            if (std::regex_search(executionResult.stderr_output, match, errorTypeRegex))
-//            {
-//                if (match[1] == "heap-buffer-overflow")
-//                {
-//                    if (std::regex_search(output, match, locationRegex)) {
-//                        std::string lineNumber = match[1];
-//                        std::cout << "Error Location: Line " << lineNumber << std::endl;
-//                    }
-//                }
-//            }
-//
-//        }
-//
-//        return res;
-//    }
-//
-//    virtual bool isErrorEncountered(const ExecutionResult& executionResult) const final
-//    {
-//        auto tmp = tryDetectError(executionResult);
-//        if (tmp.has_value() && ((*tmp) == (*this)))
-//            return true;
-//
-//        return false;
-//    }
-//
-//    bool operator==(const HeapBufferError&) const = default;
-//};
-//
-//struct StackBufferError final : AddressSanitizerError
-//{
-//    StackBufferError(int line) : line(std::move(line)) {}
-//
-//    StackBufferError(StackBufferError&&) = default;
-//    StackBufferError(const StackBufferError&) = default;
-//
-//    static std::optional<StackBufferError> tryDetectError(const ExecutionResult& executionResult)
-//    {
-//        std::optional<StackBufferError> res;
-//
-//        //TODO
-//
-//        return res;
-//    }
-//
-//    virtual bool isErrorEncountered(const ExecutionResult& executionResult) const final
-//    {
-//        auto tmp = tryDetectError(executionResult);
-//        if (tmp.has_value() && ((*tmp) == (*this)))
-//            return true;
-//
-//        return false;
-//    }
-//
-//    bool operator==(const StackBufferError&) const = default;
-//
-//    const int line;
-//};
-
 std::unique_ptr<DetectedError> detectError(const ExecutionResult& result)
 {
     {
@@ -543,17 +476,6 @@ std::unique_ptr<DetectedError> detectError(const ExecutionResult& result)
         if (tmp.has_value())
             return std::make_unique<AddressSanitizerError>(std::move(*tmp));
     }
-
-    //{
-    //    auto tmp = HeapBufferError::tryDetectError(result);
-    //    if (tmp.has_value())
-    //        return std::make_unique<HeapBufferError>(std::move(*tmp));
-    //}
-    //{
-    //    auto tmp = StackBufferError::tryDetectError(result);
-    //    if (tmp.has_value())
-    //        return std::make_unique<StackBufferError>(std::move(*tmp));
-    //}
     {
         auto tmp = ReturnCodeError::tryDetectError(result);
         if (tmp.has_value())
@@ -574,7 +496,7 @@ std::string minimizeInput(const std::string_view& input, const DetectedError& pr
     while (true)
     {
         int step;// = input.length() / divisionStep;
-        //std::string_view originalInput = input;
+
         do
         {
             step = input.length() / divisionStep;
@@ -589,7 +511,6 @@ std::string minimizeInput(const std::string_view& input, const DetectedError& pr
         {
             auto cropped = input.substr(i, step);
             executionInput.setInput(cropped);
-            //input = originalInput.substr(i, step);
 
             totalRuns+=1;
             auto result = execute_with_timeout(executionInput);
@@ -613,7 +534,6 @@ std::string minimizeInput(const std::string_view& input, const DetectedError& pr
                 complement += input.substr(i + step);
 
             executionInput.setInput(complement);
-            //input = complement;
 
             totalRuns += 1;
             auto result = execute_with_timeout(executionInput);
@@ -803,10 +723,8 @@ BOOL WINAPI consoleHandler(DWORD signal) {
 
 void dealWithResult(const std::string_view& input, ExecutionResult result, ExecutionInput& executionInput, bool fromMin)
 {
-    statisticsExecution.addNumber(result.execution_time.count());
-
-    //if (!keepRunning)
-    //    return;
+    if (!keepRunning)
+        return;
 
     CrashReport report;
     size_t errorCount;
@@ -815,8 +733,6 @@ void dealWithResult(const std::string_view& input, ExecutionResult result, Execu
 
         if (err == nullptr)
             return; //OK, no error
-
-        err->incrementCounter();
 
         {
             std::unique_lock lock(m);
@@ -872,7 +788,7 @@ void dealWithResult(const std::string_view& input, ExecutionResult result, Execu
 void fuzz()
 {
     constexpr size_t minSize = 1;
-    constexpr size_t maxSize = 2048;
+    constexpr size_t maxSize = 1024;
     constexpr std::chrono::milliseconds timeout = std::chrono::seconds(5);
 
     std::uniform_int_distribution<size_t> dist(minSize, maxSize);
@@ -910,7 +826,7 @@ void fuzz()
         dealWithResult(input, std::move(res), *executionInput, false);
 
     }
-    std::cerr << "Exiting fuzzer" << std::endl;
+    //std::cerr << "Exiting fuzzer" << std::endl;
 }
 
 
@@ -964,7 +880,7 @@ int main(int argc, char* argv[])
         });
     {
         std::vector<std::jthread> threads;// (std::thread::hardware_concurrency(), std::jthread(&fuzz));
-        auto threadCount = 1;// std::thread::hardware_concurrency();
+        auto threadCount = std::thread::hardware_concurrency();
 
         std::cerr << "Running " << threadCount << " fuzzers" << std::endl;
 
@@ -985,6 +901,7 @@ int main(int argc, char* argv[])
         //std::cin.get();
         //keepRunning = false;
     }
+    std::cerr << "All fuzzers done, ready to exit" << std::endl;
     threadsRunning = false;
 
 	return 0;
