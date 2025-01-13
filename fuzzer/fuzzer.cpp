@@ -799,10 +799,11 @@ void fuzz()
     }
 
     std::stack<std::pair<std::string, ExecutionResult>> unprocessedErrors;
-
+    
     while (keepRunning)
     {
-        auto input = generateRandomString(dist(gen), 33, 126);//1,255
+        std::string input = (statisticsExecution.count()%2 == 0) ? generateRandomString(dist(gen), 33, 126) : generateRandomNum(1, 1000000);
+        //auto input = generateRandomString(dist(gen), 33, 126);//1,255
         //std::cerr << "generated random string:" << input << std::endl;
         //auto input = generateRandomNum(1, 1000000);
 
@@ -925,6 +926,8 @@ int main(int argc, char* argv[])
     TIMEOUT = std::chrono::seconds(std::atoi(argv[5]));
     NB_KNOWN_BUGS = std::atoi(argv[6]);
 
+    std::cout << "Fuzzing program " << FUZZED_PROG << ", placing results into folder " << RESULT_FUZZ << ", minimize=" << MINIMIZE << ", type=" << fuzzInputType << ", timeout=" << TIMEOUT << ", known_bugs=" << NB_KNOWN_BUGS << std::endl;
+
     if (!std::filesystem::exists(FUZZED_PROG))
     {
         std::cerr << "Program to fuzz does not exist" << std::endl;
@@ -941,7 +944,7 @@ int main(int argc, char* argv[])
         auto threadCount = 1;// std::thread::hardware_concurrency();
         threads.reserve(threadCount-1);
 
-        std::cerr << "hardware::concurrency=" << std::thread::hardware_concurrency() << std::endl;
+        //std::cerr << "hardware::concurrency=" << std::thread::hardware_concurrency() << std::endl;
 
         std::cerr << "Running " << threadCount << " fuzzers" << std::endl;
 
@@ -958,7 +961,7 @@ int main(int argc, char* argv[])
             while (keepRunning)
             {
                 saveStatistics();
-                std::this_thread::sleep_for(std::chrono::seconds(5));
+                std::this_thread::sleep_for(std::chrono::seconds(10));
             }
             saveStatistics();
         });

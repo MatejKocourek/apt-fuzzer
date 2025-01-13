@@ -81,19 +81,27 @@ public:
     }
     T min() const
     {
+        if (_count == 0) [[unlikely]]
+            return 0;
         return _min;
     }
     T max() const
     {
+        if (_count == 0) [[unlikely]]
+            return 0;
         return _max;
     }
     double avg() const
     {
+        if (_count == 0) [[unlikely]]
+            return 0;
         std::lock_guard lock(m);
         return currentAverage;
     }
     T median() const
     {
+        if (_count == 0) [[unlikely]]
+            return 0;
         std::lock_guard lock(m);
         return _median.getMedian();
     }
