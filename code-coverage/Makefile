@@ -10,8 +10,7 @@ BUILD_DIR_TEST = $(PROJECT_DIR)/code-coverage/build_t
 RUN_DIR = $(PROJECT_DIR)/code-coverage/instrumented
 TEST_DIR = $(PROJECT_DIR)/code-coverage/tests
 
-#C_FILES=$(find $(TARGET_COV) -type f -name "*.c")
-C_FILES=$(find $(TARGET_COV) -type f \( -name "*.c" -o -name "*.h" \))
+C_FILES=$(find $(TARGET_COV) -type f -name "*.c")
 
 # The 'build' target builds the program using CMake
 build:
@@ -58,15 +57,14 @@ benchmark: build
 
 # The 'run' target runs the code coverage tool on the C file(s) specified by the TARGET_COV environment variable
 run: build
-	@echo "Running code coverage tool on *.c and *.h files in $(TARGET_COV)"
-	@mkdir -p $(RUN_DIR)
-	@cd $(RUN_DIR) && $(BUILD_DIR)/code-coverage $(C_FILES)
-	@cd $(RUN_DIR) && $(CC) *.c -o instr_prog
-	@cd $(RUN_DIR) && ./instr_prog $(ARGS_COV)
-	@cd $(RUN_DIR) && mv coverage.lcov $(TARGET_COV)/coverage.lcov
+	@echo "Running code coverage tool on files in $(TARGET_COV)/*.c"
+#	@mkdir -p $(RUN_DIR)
+	@cd $(TARGET_COV) && $(BUILD_DIR)/code-coverage *.c
+	@cd $(TARGET_COV) && $(CC) *_instrumented.c -o instr_prog
+	@cd $(TARGET_COV) && ./instr_prog $(ARGS_COV)
 
 clean:
 	@echo "Cleaning build..."
 	@rm -fr $(BUILD_DIR)
 	@rm -fr $(BUILD_DIR_TEST)
-	@rm -fr $(RUN_DIR)
+#	@rm -fr $(RUN_DIR)
