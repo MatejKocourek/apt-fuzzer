@@ -24,8 +24,8 @@ task1-test:
     - build-job
   rules:
     - changes: 
-        - code-coverage/*
-        - .gitlab-ci.yml
+      - code-coverage/*
+      - .gitlab-ci.yml
   script:
     - apt-get update -y && apt install -y make cmake g++ lcov git
     - git submodule update --init --recursive
@@ -69,8 +69,8 @@ task1-grade:
     pull_policy: always
   rules:
     - changes: 
-        - code-coverage/*
-        - .gitlab-ci.yml
+      - code-coverage/*
+      - .gitlab-ci.yml
   stage: test
   #needs: ["task1-test", "task1-benchmark"]
   script:
