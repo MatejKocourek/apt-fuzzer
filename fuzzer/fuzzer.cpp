@@ -567,13 +567,19 @@ void dealWithResult(const std::string_view& input, ExecutionResult result, Execu
 
 std::string minimizeInput(const std::string_view& input, const DetectedError& prevResult, ExecutionInput& executionInput, size_t& totalRuns)
 {
-    constexpr size_t divisionsStepStart = 2;
-    size_t divisionStep = divisionsStepStart;
+    constexpr int divisionsStepStart = 2;
+    int divisionStep = divisionsStepStart;
+    int prevStep = 0;
 
     while (true)
     {
+        int step;// = input.length() / divisionStep;
         //std::string_view originalInput = input;
-        size_t step = input.length() / divisionStep;
+        do
+        {
+            step = input.length() / divisionStep;
+            divisionStep++;
+        } while (step == prevStep);
 
         if (step < 1)
             return std::string(input);
@@ -627,6 +633,7 @@ std::string minimizeInput(const std::string_view& input, const DetectedError& pr
 
         //input = originalInput;
         divisionStep++;//*= 2; // Minimize with more steps
+        prevStep = step;
     }
 }
 
