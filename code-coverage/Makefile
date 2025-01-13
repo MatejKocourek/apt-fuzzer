@@ -58,11 +58,10 @@ benchmark: build
 # The 'run' target runs the code coverage tool on the C file(s) specified by the TARGET_COV environment variable
 run: build
 	@echo "Running code coverage tool on files in $(TARGET_COV)/*.c"
-	@mkdir -p $(RUN_DIR)
-	@cd $(RUN_DIR) && $(BUILD_DIR)/code-coverage $(TARGET_COV)/*.c
-	@cd $(RUN_DIR) && $(CC) *_instrumented.c -o instr_prog
-	@cd $(RUN_DIR) && ./instr_prog $(ARGS_COV)
-	@cd $(RUN_DIR) && mv coverage.lcov $(TARGET_COV)/coverage.lcov
+#	@mkdir -p $(RUN_DIR)
+	@cd $(TARGET_COV) && $(BUILD_DIR)/code-coverage $(TARGET_COV)/*.c
+	@cd $(TARGET_COV) && $(CC) *_instrumented.c -o instr_prog
+	@cd $(TARGET_COV) && ./instr_prog $(ARGS_COV)
 	@cd $(TARGET_COV) && cat coverage.lcov
 clean:
 	@echo "Cleaning build..."
