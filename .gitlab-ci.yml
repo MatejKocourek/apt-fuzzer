@@ -22,9 +22,10 @@ task1-test:
   stage: test
   dependencies:
     - build-job
-  #rules:
-    #- changes: 
-        #- code-coverage/* # Only run it if you changed something to task 1
+  rules:
+    - changes: 
+        - code-coverage/*
+        - .gitlab-ci.yml
   script:
     - apt-get update -y && apt install -y make cmake g++ lcov git
     - git submodule update --init --recursive
@@ -36,6 +37,10 @@ task2-test:
   stage: test
   dependencies:
     - build-job
+  rules:
+    - changes: 
+      - fuzzer/*
+      - .gitlab-ci.yml
   script:
     - apt-get update -y && apt install -y make cmake g++ lcov libboost-all-dev
     - cd fuzzer
@@ -51,7 +56,8 @@ task1-benchmark:
     - build-job
   rules:
     - changes: 
-      - code-coverage/* # Only run it if you changed something
+      - code-coverage/*
+      - .gitlab-ci.yml
   script:
     - apt-get update -y && apt install -y make cmake g++
     - cd code-coverage
@@ -61,9 +67,10 @@ task1-grade:
   image:
     name: pierredb/ni-apt-grader:latest
     pull_policy: always
-  #rules:
-    #- changes: 
-        #- code-coverage/* # Only run it if you changed something to task 1
+  rules:
+    - changes: 
+        - code-coverage/*
+        - .gitlab-ci.yml
   stage: test
   #needs: ["task1-test", "task1-benchmark"]
   script:
@@ -79,9 +86,10 @@ task2-grade:
     pull_policy: always
   rules:
     - changes: 
-      - fuzzer/* # Only run it if you changed something
+      - fuzzer/*
+      - .gitlab-ci.yml
   stage: test
-  #needs: ["test"]
+  #needs: ["task2-test"]
   script:
     - export PROJECT_DIR=$PWD
     - cd /grader
