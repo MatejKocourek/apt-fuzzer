@@ -1,13 +1,10 @@
 # Random fuzzer with test minimization - NI-APT task 2
 
-After cloning, run:
-`git submodule update --init --recursive`
-This ensures that required libraries are available for the compilation process
-
 ### Bonuses that are implemented:
 
 - Integer input generation
 - Reading from environmental variables to speed up CI
+- Leaderboard participation
 
 ## Testing
 
