@@ -193,17 +193,16 @@ ExecutionResult execute_with_timeout(const ExecutionInput& executionInput) {
         return oss.str();
         });
 
-    auto end = std::chrono::high_resolution_clock::now();
 
     // Wait for process completion with a timeout.
     bool finished_in_time = process.wait_for(executionInput.timeout);
     if (!finished_in_time) {
         process.terminate();  // Kill the process if it times out
-        return { -1, "", "", true, std::chrono::duration_cast<std::chrono::duration<double, std::milli>>(end - start) };  // Indicate a timeout occurred
+        return { -1, "", "", true, std::chrono::duration_cast<std::chrono::duration<double, std::milli>>(std::chrono::high_resolution_clock::now() - start) };  // Indicate a timeout occurred
     }
 
     // Retrieve the outputs and return code
-    return { std::move(process.exit_code()), std::move(stdout_future.get()), std::move(stderr_future.get()), false, std::chrono::duration_cast<std::chrono::duration<double, std::milli>>(end - start) };
+    return { std::move(process.exit_code()), std::move(stdout_future.get()), std::move(stderr_future.get()), false, std::chrono::duration_cast<std::chrono::duration<double, std::milli>>(std::chrono::high_resolution_clock::now() - start) };
 }
 
 struct DetectedError
@@ -354,7 +353,7 @@ struct TimeoutError final : public DetectedError
 };
 
 static const std::regex errorTypeRegex("ERROR: AddressSanitizer: (\\b\\w[-\\w]*\\b)");
-static const std::regex locationRegex("main (\\S+):(\\d+)");//"(at 0x[0-9A-Fa-f]+.*:(\\d+))");
+static const std::regex locationRegex(" in main (\\S+):(\\d+)");//"(at 0x[0-9A-Fa-f]+.*:(\\d+))");
 
 struct AddressSanitizerError : public ReturnCodeError
 {
@@ -803,28 +802,23 @@ void fuzz()
     
     while (keepRunning)
     {
-        std::string input = (statisticsExecution.count()%2 == 0) ? generateRandomString(dist(gen), 33, 126) : generateRandomNum(1, 1000000);
+        std::string input = (nb_before_min%2 == 0) ? generateRandomString(dist(gen), 33, 126) : generateRandomNum(1, 1000000);
         //auto input = generateRandomString(dist(gen), 33, 126);//1,255
         //std::cerr << "generated random string:" << input << std::endl;
         //auto input = generateRandomNum(1, 1000000);
 
         executionInput->setInput(input);
 
-        auto start = std::chrono::high_resolution_clock::now();
+        //auto start = std::chrono::high_resolution_clock::now();
         auto res = execute_with_timeout(*executionInput);
-        auto end = std::chrono::high_resolution_clock::now();
+        //auto end = std::chrono::high_resolution_clock::now();
 
-        auto execution_time = std::chrono::duration_cast<std::chrono::duration<double,std::milli>>(end - start);
+        //auto execution_time = std::chrono::duration_cast<std::chrono::duration<double,std::milli>>(end - start);
 
-        statisticsExecution.addNumber(execution_time.count());
 
         if (!res.isOk())
         {
             unprocessedErrors.emplace(input, std::move(res));
-        }
-        else
-        {
-            //std::cerr << "NO Detected error for input " << input << std::endl;
         }
 
         while (!unprocessedErrors.empty() && keepRunning)
@@ -841,7 +835,7 @@ void fuzz()
 
                 
                 err->incrementCounter();
-
+                statisticsExecution.addNumber(pop.second.execution_time.count());
 
                 {
                     std::unique_lock lock(m);
