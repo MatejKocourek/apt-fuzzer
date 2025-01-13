@@ -28,7 +28,7 @@ else()
 endif()
 
 # Add source to this project's executable.
-add_executable (fuzzer "fuzzer.cpp" "median.h")
+add_executable (fuzzer "fuzzer.cpp" "median.h" "fuzzer.h")
 
 if (CMAKE_VERSION VERSION_GREATER 3.12)
   set_property(TARGET fuzzer PROPERTY CXX_STANDARD 20)
@@ -53,4 +53,58 @@ if(Boost_FOUND)
     target_link_libraries(fuzzer PRIVATE ${Boost_LIBRARIES})
 else()
     message(FATAL_ERROR "Boost not found!")
+endif()
+
+
+
+# Tests
+
+#set(COVERAGE ON)
+
+# If coverage is enabled, modify the compile flags
+if(COVERAGE)
+    message(STATUS "Code coverage enabled")
+
+
+include(FetchContent)
+FetchContent_Declare(
+  googletest
+  URL https://github.com/google/googletest/archive/03597a01ee50ed33e9dfd640b249b4be3799d395.zip
+)
+# For Windows: Prevent overriding the parent project's compiler/linker settings
+set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
+FetchContent_MakeAvailable(googletest)
+
+enable_testing()
+
+add_executable (tests "test.cpp")
+target_link_libraries(tests PRIVATE GTest::gtest_main)
+
+set_property(TARGET tests PROPERTY CXX_STANDARD 20)
+
+include(GoogleTest)
+gtest_discover_tests(tests)
+
+if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+    message(STATUS "GCC detected, generating code coverage")
+
+    # Add compiler flags for coverage
+    target_compile_options(tests PRIVATE -fprofile-arcs -ftest-coverage -g -O0)
+    target_link_libraries(tests PRIVATE gcov)
+    target_link_options(tests PRIVATE -fprofile-arcs -ftest-coverage)
+
+    # Add a custom target to generate coverage report using lcov
+    add_custom_target(coverage
+        COMMAND ./tests
+        COMMAND lcov --capture --directory . --output-file coverage.info --include */fuzzer.h
+        COMMAND genhtml coverage.info --output-directory coverage_report
+        COMMENT "Generating code coverage report..."
+        DEPENDS tests
+    )
+else()
+    message(STATUS "Non-GCC compiler detected, cannot generate code coverage")
+endif()
+
+else()
+    message(STATUS "Code coverage disabled")
 endif()
