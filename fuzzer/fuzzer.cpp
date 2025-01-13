@@ -14,8 +14,6 @@
 #include <memory>
 #include <regex>
 #include <csignal>
-
-
 #include "median.h"
 
 
@@ -43,7 +41,7 @@ std::string generateRandomAlphaNum(std::size_t size) {
     for (std::size_t i = 0; i < size; ++i) {
         char tmp = alphaNumerical[dist(gen)];
 
-        randomString += tmp; // Generate a random character
+        randomString += tmp;
     }
 
     return randomString;
@@ -60,7 +58,7 @@ std::string generateRandomString(std::size_t size, int minChar, int maxChar) {
 
     for (std::size_t i = 0; i < size; ++i) {
         char tmp = dist(gen);
-        while (tmp == '\\' || tmp == '"')
+        while (tmp == '\\' || tmp == '"') // Trick to not having to escape in JSON
             tmp = dist(gen);
 
         randomString += tmp; // Generate a random character
@@ -85,11 +83,6 @@ struct ExecutionResult {
     bool timed_out;
     std::chrono::duration<double, std::milli> execution_time;
 
-    //ExecutionResult() = default;
-
-    //ExecutionResult(const ExecutionResult&) = default;
-    //ExecutionResult(ExecutionResult&&) = default;
-
     bool operator==(const ExecutionResult&) const = default;
 
     bool isOk() const
@@ -100,31 +93,20 @@ struct ExecutionResult {
 
 struct ExecutionInput
 {
-    ExecutionInput(std::string executablePath, std::chrono::milliseconds timeout) : executablePath(std::move(executablePath)), timeout(std::move(timeout))
-    {
-
-    }
+    ExecutionInput(std::string executablePath, std::chrono::milliseconds timeout) : executablePath(std::move(executablePath)), timeout(std::move(timeout)) {}
 
     virtual std::vector<std::string> getArguments() const = 0;
     virtual std::string_view getCin() const = 0;
 
     virtual void setInput(const std::string_view& input) = 0;
-    virtual void setInput(std::string_view&& input)
-    {
-        setInput(input);
-    }
 
     const std::string executablePath;
     const std::chrono::milliseconds timeout;
-
 };
 
 struct FileInput final : public ExecutionInput
 {
-    FileInput(std::string executablePath, std::chrono::milliseconds timeout, std::string path) : ExecutionInput(std::move(executablePath), std::move(timeout)), path(std::move(path))
-    {
-
-    }
+    FileInput(std::string executablePath, std::chrono::milliseconds timeout, std::string path) : ExecutionInput(std::move(executablePath), std::move(timeout)), path(std::move(path)) { }
 
     virtual std::vector<std::string> getArguments() const final
     {
@@ -146,10 +128,7 @@ private:
 
 struct CinInput final : public ExecutionInput
 {
-    CinInput(std::string executablePath, std::chrono::milliseconds timeout) : ExecutionInput(std::move(executablePath), std::move(timeout))
-    {
-
-    }
+    CinInput(std::string executablePath, std::chrono::milliseconds timeout) : ExecutionInput(std::move(executablePath), std::move(timeout)) { }
 
     virtual std::vector<std::string> getArguments() const final
     {
@@ -174,7 +153,6 @@ private:
 
 ExecutionResult execute_with_timeout(const ExecutionInput& executionInput) {
     using namespace boost::process;
-    //namespace asio = boost::asio;
 
     ipstream stdout_stream;  // To capture standard output
     ipstream stderr_stream;  // To capture standard error
@@ -225,6 +203,7 @@ ExecutionResult execute_with_timeout(const ExecutionInput& executionInput) {
     statisticsExecution.addNumber(duration.count());
     if(process.exit_code() != 0)
         nb_failed_runs.fetch_add(1, std::memory_order_relaxed);
+
     // Retrieve the outputs and return code
     return { std::move(process.exit_code()), std::move(stdout_future.get()), std::move(stderr_future.get()), false, duration };
 }
@@ -313,7 +292,8 @@ struct TimeoutError final : public DetectedError
 {
     bool operator==(const TimeoutError& other) const
     {
-        return true;// timeout == other.timeout;
+        return true; //All timeouts are treated as equal
+        // return timeout == other.timeout;
     }
 
     TimeoutError(std::chrono::duration<double, std::milli> timeout) : timeout(std::move(timeout)){}
@@ -375,7 +355,7 @@ struct TimeoutError final : public DetectedError
 };
 
 static const std::regex errorTypeRegex("ERROR: AddressSanitizer: (.*) on address");
-static const std::regex locationRegex("(main.c):(\\d+)");//"(at 0x[0-9A-Fa-f]+.*:(\\d+))");
+static const std::regex locationRegex("(main.c):(\\d+)");
 
 struct AddressSanitizerError : public ReturnCodeError
 {
@@ -495,7 +475,7 @@ std::string minimizeInput(const std::string_view& input, const DetectedError& pr
 
     while (true)
     {
-        int step;// = input.length() / divisionStep;
+        int step;
 
         do
         {
@@ -550,9 +530,6 @@ std::string minimizeInput(const std::string_view& input, const DetectedError& pr
         //Step 3
 
         //If it arrives here, it means we can't minimize at this granularity
-
-        //input = originalInput;
-        //divisionStep++;//*= 2; // Minimize with more steps
     }
 }
 
@@ -567,6 +544,7 @@ struct CrashReport
     size_t nb_steps;
     std::chrono::duration<double, std::milli> minimization_time;
 };
+
 
 
 void exportReport(const CrashReport& report, std::ostream& output)
@@ -593,9 +571,6 @@ static void saveReport(const CrashReport& report, const std::string& name, const
     std::filesystem::create_directories(resultFile);
 
     resultFile /= name; 
-    //const auto now = std::chrono::system_clock::now();
-    //std::cout << std::format("{:%Y-%m-%d-%H-%M-%OS}", now) << '\n';
-
 
     std::ofstream output(resultFile);
 
@@ -622,7 +597,7 @@ static std::vector<std::unique_ptr<DetectedError>> uniqueResults;
 
 static void exportStatistics(std::ostream& output)
 {
-    //std::lock_guard guard(m);
+    std::lock_guard guard(m);
     output <<
     "{"
         "\"fuzzer_name\":"              "\"kocoumat\","
@@ -681,11 +656,11 @@ void signalHandler(int signal) {
         keepRunning = false;
     }
 
-    if (!keepRunning)
-    {
-        saveStatistics();
-        std::cerr << "Ready for exit." << std::endl;
-    }
+    //if (!keepRunning)
+    //{
+    //    saveStatistics();
+    //    std::cerr << "Ready for exit." << std::endl;
+    //}
 }
 
 void setupSignalHandlers() {
@@ -734,7 +709,7 @@ void dealWithResult(const std::string_view& input, ExecutionResult result, Execu
             return; //OK, no error
 
         {
-            //std::unique_lock lock(m);
+            std::unique_lock lock(m);
             errorCount = uniqueResults.size();
             for (size_t i = 0; i < uniqueResults.size(); i++)
             {
@@ -774,8 +749,6 @@ void dealWithResult(const std::string_view& input, ExecutionResult result, Execu
 
         statisticsMinimization.addNumber(report.minimization_time.count());
         statisticsMinimizationSteps.addNumber(report.nb_steps);
-
-        //std::cerr << "Minimized to: " << pop.first << std::endl;
     }
     else
         report.input = input;
@@ -810,17 +783,10 @@ void fuzz()
     while (keepRunning)
     {
         std::string input = (statisticsExecution.count() % 2 == 0) ? generateRandomString(dist(gen), 33, 126) : generateRandomNum(1, 1000000);
-        //std::cerr << "generated random string:" << input << std::endl;
-        //auto input = generateRandomNum(1, 1000000);
 
         executionInput->setInput(input);
 
-        //auto start = std::chrono::high_resolution_clock::now();
         auto res = execute_with_timeout(*executionInput);
-        //auto end = std::chrono::high_resolution_clock::now();
-
-        //auto execution_time = std::chrono::duration_cast<std::chrono::duration<double,std::milli>>(end - start);
-        //statisticsExecution.addNumber(res.execution_time.count());
 
         dealWithResult(input, std::move(res), *executionInput, false);
 
@@ -877,8 +843,15 @@ int main(int argc, char* argv[])
         std::cerr << "Program can end, writing one last statistics report and exiting..." << std::endl;
         saveStatistics();
         });
+
+    //std::jthread worker([&]() {
+    //    std::this_thread::sleep_for(TIMEOUT); // Wait for the set time
+    //    keepRunning = false;
+    //    std::cerr << "Timeout reached, ending." << std::endl;
+    //    });
+
     {
-        std::vector<std::jthread> threads;// (std::thread::hardware_concurrency(), std::jthread(&fuzz));
+        std::vector<std::jthread> threads;
         auto threadCount = 1;// std::thread::hardware_concurrency();
 
         std::cerr << "Running " << threadCount << " fuzzers" << std::endl;
@@ -887,18 +860,7 @@ int main(int argc, char* argv[])
         for (size_t i = 0; i < threadCount-1; i++)
             threads.emplace_back(fuzz);
 
-
-        //std::jthread worker([&]() {
-        //    std::this_thread::sleep_for(TIMEOUT); // Wait for the set time
-        //    keepRunning = false;
-        //    std::cerr << "Timeout reached, ending." << std::endl;
-        //    });
-
-
         fuzz();
-
-        //std::cin.get();
-        //keepRunning = false;
     }
     std::cerr << "All fuzzers done, ready to exit" << std::endl;
     threadsRunning = false;

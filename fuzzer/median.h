@@ -63,7 +63,7 @@ class StatisticsMemory
     StreamingMedian<T> _median;
     double currentAverage = 0.0; // Running average
     std::atomic<size_t> _count = 0;
-    //mutable std::mutex m;
+    mutable std::mutex m;
 
 public:
     void addNumber(T num)
@@ -73,7 +73,7 @@ public:
         update_max(_max, num);
         update_min(_min, num);
 
-        //std::lock_guard lock(m);
+        std::lock_guard lock(m);
         _median.addNumber(num);
         
 
@@ -95,14 +95,14 @@ public:
     {
         if (_count == 0) [[unlikely]]
             return 0;
-        //std::lock_guard lock(m);
+        std::lock_guard lock(m);
         return currentAverage;
     }
     T median() const
     {
         if (_count == 0) [[unlikely]]
             return 0;
-        //std::lock_guard lock(m);
+        std::lock_guard lock(m);
         return _median.getMedian();
     }
     size_t count() const
