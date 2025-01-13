@@ -59,10 +59,9 @@ benchmark: build
 run: build
 	@echo "Running code coverage tool on files in $(TARGET_COV)/*.c"
 #	@mkdir -p $(RUN_DIR)
-	@cd $(TARGET_COV) && $(BUILD_DIR)/code-coverage *.c
+	@cd $(TARGET_COV) && $(BUILD_DIR)/code-coverage $(TARGET_COV)/*.c
 	@cd $(TARGET_COV) && $(CC) *_instrumented.c -o instr_prog
 	@cd $(TARGET_COV) && ./instr_prog $(ARGS_COV)
-
 clean:
 	@echo "Cleaning build..."
 	@rm -fr $(BUILD_DIR)
