@@ -640,7 +640,7 @@ void instrumentHeaderMain(std::ostream& os, const std::vector<FileInstrument>& a
 	for (const auto& i : allFiles)
 	{
 		os <<
-			"SF:" << "filename" << "\\n";//allFiles[i].filename
+			"SF:" << i.filename << "\\n";
 
 		for (const auto& j : i.instrumentations)
 			os << "DA:" << j.second << ",%llu\\n";
