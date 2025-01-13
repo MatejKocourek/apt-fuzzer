@@ -490,8 +490,8 @@ void dealWithResult(const std::string_view& input, ExecutionResult result, Execu
 std::string minimizeInput(const std::string_view& input, const DetectedError& prevResult, ExecutionInput& executionInput, size_t& totalRuns)
 {
     constexpr int divisionsStepStart = 2;
-    int divisionStep = divisionsStepStart;
-    int prevStep = 0;
+    int divisionStep = divisionsStepStart - 1;
+    int prevStep = -1;
 
     while (true)
     {
@@ -499,9 +499,9 @@ std::string minimizeInput(const std::string_view& input, const DetectedError& pr
 
         do
         {
-            step = input.length() / divisionStep;
-            divisionStep++;
+            step = input.length() / ++divisionStep;
         } while (step == prevStep);
+        prevStep = step;
 
         if (step < 1)
             return std::string(input);
@@ -552,8 +552,7 @@ std::string minimizeInput(const std::string_view& input, const DetectedError& pr
         //If it arrives here, it means we can't minimize at this granularity
 
         //input = originalInput;
-        divisionStep++;//*= 2; // Minimize with more steps
-        prevStep = step;
+        //divisionStep++;//*= 2; // Minimize with more steps
     }
 }
 
