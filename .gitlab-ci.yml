@@ -49,9 +49,9 @@ task1-benchmark:
   stage: test
   dependencies:
     - build-job
-  #rules:
-    #- changes: 
-      #- code-coverage/* # Only run it if you changed something to task 1
+  rules:
+    - changes: 
+      - code-coverage/* # Only run it if you changed something
   script:
     - apt-get update -y && apt install -y make cmake g++
     - cd code-coverage

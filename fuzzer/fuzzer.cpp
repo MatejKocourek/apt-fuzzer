@@ -369,7 +369,7 @@ struct TimeoutError final : public DetectedError
     std::chrono::duration<double, std::milli> timeout;
 };
 
-static const std::regex errorTypeRegex("ERROR: AddressSanitizer: (\\b\\w[-\\w]*\\b)");
+static const std::regex errorTypeRegex("ERROR: AddressSanitizer: (.*) on address");
 static const std::regex locationRegex("(main.c):(\\d+)");//"(at 0x[0-9A-Fa-f]+.*:(\\d+))");
 
 struct AddressSanitizerError : public ReturnCodeError
@@ -403,6 +403,7 @@ struct AddressSanitizerError : public ReturnCodeError
     static std::optional<AddressSanitizerError> tryDetectError(const ExecutionResult& executionResult)
     {
         std::optional<AddressSanitizerError> res;
+        //const std::string test = "==22836==ERROR: AddressSanitizer: stack-buffer-overflow on address 0x7ffe6d166b08 at pc\n#3 0x64161615 in main tests/minimization/main.c:17\n#4 0x6456564...";
 
         if (executionResult.return_code == 1)
         {
@@ -414,7 +415,6 @@ struct AddressSanitizerError : public ReturnCodeError
 
                 std::smatch match2;
 
-                //std::string test = "#3 0x64161615 in main tests/minimization/main.c:17\n#4 0x6456564...";
                 if (std::regex_search(executionResult.stderr_output, match2, locationRegex)) {
                     std::string asan;
                     if (match[1] == "heap-buffer-overflow")
@@ -733,7 +733,7 @@ static void saveStatistics()
     std::ofstream output(path);
     exportStatistics(output);
 
-    std::cout << "Currents stats: \n";
+    std::cout << "Current stats: \n";
     exportStatistics(std::cout);
     std::cout << std::endl;
 
