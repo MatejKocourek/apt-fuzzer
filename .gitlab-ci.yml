@@ -77,6 +77,9 @@ task2-grade:
   image:
     name: pierredb/ni-apt-grader:latest
     pull_policy: always
+  rules:
+    - changes: 
+      - fuzzer/* # Only run it if you changed something
   stage: test
   #needs: ["test"]
   script:
