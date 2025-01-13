@@ -43,6 +43,8 @@ int main(int argc, char* argv[]) {
 			}
 		}
 
+		std::cerr << "Loaded " << fileInstruments.size() << " files." << std::endl;
+
 		for (const auto& i : fileInstruments)
 		{
 			std::ofstream outFile(STR(i.fileId << "_instrumented.c"));
