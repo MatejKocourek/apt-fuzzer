@@ -880,7 +880,7 @@ int main(int argc, char* argv[])
         });
     {
         std::vector<std::jthread> threads;// (std::thread::hardware_concurrency(), std::jthread(&fuzz));
-        auto threadCount = std::thread::hardware_concurrency();
+        auto threadCount = 1;// std::thread::hardware_concurrency();
 
         std::cerr << "Running " << threadCount << " fuzzers" << std::endl;
 
