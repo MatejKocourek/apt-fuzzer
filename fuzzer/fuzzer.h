@@ -664,36 +664,38 @@ struct fuzzer {
     std::mutex m;
     std::vector<std::unique_ptr<DetectedError>> uniqueResults;
 
-    void exportStatistics(std::ostream& output)
+    void exportStatisticsCommon(std::ostream& output)
     {
         std::lock_guard guard(m);
         output <<
-            "{"
-            "\"fuzzer_name\":"              "\"kocoumat\","
-            "\"fuzzed_program\":"           "\"" << FUZZED_PROG << "\","
-            "\"nb_runs\":" << statisticsExecution.count() << ","
-            "\"nb_failed_runs\":" << nb_failed_runs.load(std::memory_order_relaxed) << ","
-            "\"nb_hanged_runs\":" << nb_hanged_runs.load(std::memory_order_relaxed) << ","
-            "\"execution_time\": {"
-            "\"average\":" << statisticsExecution.avg() << ","
-            "\"median\":" << statisticsExecution.median() << ","
-            "\"min\":" << statisticsExecution.min() << ","
-            "\"max\":" << statisticsExecution.max() <<
-            "},"
-            "\"nb_unique_failures\":" << uniqueResults.size() << ","
-            "\"minimization\": {"
-            "\"before\":" << nb_before_min.load(std::memory_order_relaxed) << ","
-            "\"avg_steps\":" << std::lround(statisticsMinimizationSteps.avg()) << ","
-            "\"execution_time\": {"
-            "\"average\":" << statisticsMinimization.avg() << ","
-            "\"median\":" << statisticsMinimization.median() << ","
-            "\"min\":" << statisticsMinimization.min() << ","
-            "\"max\":" << statisticsMinimization.max() <<
+            //"{"
+                "\"fuzzer_name\":"              "\"kocoumat\","
+                "\"fuzzed_program\":"           "\"" << FUZZED_PROG << "\","
+                "\"nb_runs\":" << statisticsExecution.count() << ","
+                "\"nb_failed_runs\":" << nb_failed_runs.load(std::memory_order_relaxed) << ","
+                "\"nb_hanged_runs\":" << nb_hanged_runs.load(std::memory_order_relaxed) << ","
+                "\"execution_time\": {"
+                    "\"average\":" << statisticsExecution.avg() << ","
+                    "\"median\":" << statisticsExecution.median() << ","
+                    "\"min\":" << statisticsExecution.min() << ","
+                    "\"max\":" << statisticsExecution.max() <<
+                "},"
+                "\"nb_unique_failures\":" << uniqueResults.size() << ","
+                "\"minimization\": {"
+                    "\"before\":" << nb_before_min.load(std::memory_order_relaxed) << ","
+                    "\"avg_steps\":" << std::lround(statisticsMinimizationSteps.avg()) << ","
+                    "\"execution_time\": {"
+                        "\"average\":" << statisticsMinimization.avg() << ","
+                        "\"median\":" << statisticsMinimization.median() << ","
+                        "\"min\":" << statisticsMinimization.min() << ","
+                        "\"max\":" << statisticsMinimization.max() <<
+                    "}"
             "}"
-            "}"
-            "}"
+            //"}"
             ;
     }
+
+    virtual void exportStatistics(std::ostream& output) = 0;
 
     void saveStatistics()
     {
@@ -784,6 +786,9 @@ struct fuzzer {
 public:
     fuzzer(std::filesystem::path FUZZED_PROG, std::filesystem::path RESULT_FUZZ, bool MINIMIZE, std::string_view fuzzInputType, std::chrono::seconds TIMEOUT, size_t NB_KNOWN_BUGS) : FUZZED_PROG(FUZZED_PROG), RESULT_FUZZ(RESULT_FUZZ), MINIMIZE(MINIMIZE), fuzzInputType(fuzzInputType), TIMEOUT(TIMEOUT), NB_KNOWN_BUGS(NB_KNOWN_BUGS)//, minSize(minSize), maxSize(maxSize)
     {
+        if (!std::filesystem::exists(this->FUZZED_PROG) || std::filesystem::is_directory(this->FUZZED_PROG))
+            throw std::runtime_error("Program to fuzz does not exist");
+
         std::filesystem::create_directories(RESULT_FUZZ);
         std::filesystem::create_directories(RESULT_FUZZ / "crashes");
         std::filesystem::create_directories(RESULT_FUZZ / "hangs");
@@ -868,8 +873,7 @@ struct fuzzer_blackbox : public fuzzer
 {
     fuzzer_blackbox(std::filesystem::path FUZZED_PROG, std::filesystem::path RESULT_FUZZ, bool MINIMIZE, std::string_view INPUT, std::chrono::seconds TIMEOUT, size_t NB_KNOWN_BUGS/*, size_t minSize = 1, size_t maxSize = 1024*/) : fuzzer(std::move(FUZZED_PROG), std::move(RESULT_FUZZ), std::move(MINIMIZE), std::move(INPUT), std::move(TIMEOUT), std::move(NB_KNOWN_BUGS))//, minSize(minSize), maxSize(maxSize)
     {
-        if (!std::filesystem::exists(FUZZED_PROG) || std::filesystem::is_directory(FUZZED_PROG))
-            throw std::runtime_error("Program to fuzz does not exist");
+
     }
 
     void fuzz()
@@ -887,6 +891,12 @@ struct fuzzer_blackbox : public fuzzer
         //std::cerr << "Exiting fuzzer" << std::endl;
     }
 
+    virtual void exportStatistics(std::ostream& out) override
+    {
+        out << '{';
+        exportStatisticsCommon(out);
+        out << '}';
+    }
 };
 
 static const std::regex linesFound("LF:(\\d+)");
@@ -935,13 +945,19 @@ struct fuzzer_greybox : public fuzzer
 
     std::multiset<seed> queue;
 
-    fuzzer_greybox(std::filesystem::path FUZZED_PROG, std::filesystem::path RESULT_FUZZ, bool MINIMIZE, std::string_view INPUT, std::chrono::seconds TIMEOUT, size_t NB_KNOWN_BUGS, POWER_SCHEDULE_T POWER_SCHEDULE, std::filesystem::path COVERAGE_FILE, std::filesystem::path INPUT_SEEDS) : fuzzer(std::move(FUZZED_PROG),std::move(RESULT_FUZZ),std::move(MINIMIZE),std::move(INPUT),std::move(TIMEOUT),std::move(NB_KNOWN_BUGS)), POWER_SCHEDULE(std::move(POWER_SCHEDULE)), COVERAGE_FILE(std::move(COVERAGE_FILE)), INPUT_SEEDS(std::move(INPUT_SEEDS))
+    fuzzer_greybox(std::filesystem::path FUZZED_PROG, std::filesystem::path RESULT_FUZZ, bool MINIMIZE, std::string_view INPUT, std::chrono::seconds TIMEOUT, size_t NB_KNOWN_BUGS, POWER_SCHEDULE_T POWER_SCHEDULE, std::filesystem::path COVERAGE_FILE, std::filesystem::path INPUT_SEEDS) : fuzzer(std::move(FUZZED_PROG), std::move(RESULT_FUZZ), std::move(MINIMIZE), std::move(INPUT), std::move(TIMEOUT), std::move(NB_KNOWN_BUGS)), POWER_SCHEDULE(std::move(POWER_SCHEDULE)), COVERAGE_FILE(std::move(COVERAGE_FILE)), INPUT_SEEDS(std::move(INPUT_SEEDS))
     {
-        if (!std::filesystem::exists(this->FUZZED_PROG) || std::filesystem::is_directory(this->FUZZED_PROG))
-            throw std::runtime_error("Program to fuzz does not exist");
+
     }
 
-
+    virtual void exportStatistics(std::ostream& out) override
+    {
+        out << '{';
+        exportStatisticsCommon(out);
+        out << "\"nb_queued_seed\":" << queue.size() << ",";
+        out << "\"coverage\":" << bestCoverage*100 << ",";
+        out << '}';
+    }
 
     //double rankAFL(const seed& s)
     //{

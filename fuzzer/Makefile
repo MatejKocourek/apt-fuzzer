@@ -36,10 +36,10 @@ greybox: build
 	@cd $(BUILD_DIR) && ./fuzzer instr_prog $(RESULT_FUZZ) $(MINIMIZE) $(INPUT) $(TIMEOUT) $(NB_KNOWN_BUGS) $(POWER_SCHEDULE) coverage.lcov $(INPUT_SEEDS)
 
 run:
-ifeq ($(FUZZER), greybox)
-	$(MAKE) greybox
-else
+ifeq ($(FUZZER), blackbox)
 	$(MAKE) blackbox
+else
+	$(MAKE) greybox
 endif
 
 clean:
