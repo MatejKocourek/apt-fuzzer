@@ -1,7 +1,7 @@
 ﻿#include "fuzzer.h"
 #include <optional>
 
-std::optional<fuzzer> myFuzzer;
+fuzzer* myFuzzer;
 
 
 #ifndef _MSC_VER
@@ -58,6 +58,13 @@ BOOL WINAPI consoleHandler(DWORD signal) {
 int main(int argc, char* argv[])
 {
     std::ios_base::sync_with_stdio(false);
+
+    //std::cerr << "Provided arguments: " << argc - 1 << std::endl;
+    //for (size_t i = 1; i < argc; i++)
+    //{
+    //    std::cerr << argv[i] << std::endl;
+    //}
+
     if (argc <= 6)
     {
         std::cerr << "Provide arguments" << std::endl;
@@ -73,19 +80,59 @@ int main(int argc, char* argv[])
     }
 #endif
 
-    std::string FUZZED_PROG = argv[1];
+    std::filesystem::path FUZZED_PROG = argv[1];
     std::filesystem::path RESULT_FUZZ = argv[2];
     bool MINIMIZE = std::atoi(argv[3]) != 0;
     std::string_view fuzzInputType = argv[4];
     std::chrono::seconds TIMEOUT = std::chrono::seconds(std::atoi(argv[5]));
     size_t NB_KNOWN_BUGS = std::atoi(argv[6]);
 
-    std::cout << "Fuzzing program " << FUZZED_PROG << ", placing results into folder " << RESULT_FUZZ << ", minimize=" << MINIMIZE << ", type=" << fuzzInputType << ", timeout=" << TIMEOUT << ", known_bugs=" << NB_KNOWN_BUGS << std::endl;
-
     try
     {
-        myFuzzer.emplace(std::move(FUZZED_PROG), std::move(RESULT_FUZZ), std::move(MINIMIZE), std::move(fuzzInputType), std::move(TIMEOUT), std::move(NB_KNOWN_BUGS));
-        myFuzzer->run();
+
+        if (argc <= 7)
+        {
+            //BLACKBOX
+
+            std::cout << "Blackbox fuzzing program " << FUZZED_PROG << ", placing results into folder " << RESULT_FUZZ << ", minimize=" << MINIMIZE << ", type=" << fuzzInputType << ", timeout=" << TIMEOUT.count() << ", known_bugs=" << NB_KNOWN_BUGS << std::endl;
+
+            fuzzer_blackbox blackbox(std::move(FUZZED_PROG), std::move(RESULT_FUZZ), std::move(MINIMIZE), std::move(fuzzInputType), std::move(TIMEOUT), std::move(NB_KNOWN_BUGS));
+            myFuzzer = &blackbox;
+            blackbox.run();
+        }
+        else
+        {
+            // GREYBOX
+            std::cerr << "Greybox" << std::endl;
+            std::string_view POWER_SCHEDULE = argv[7];
+
+            fuzzer_greybox::POWER_SCHEDULE_T schedule = POWER_SCHEDULE == "simple" ? fuzzer_greybox::POWER_SCHEDULE_T::simple : fuzzer_greybox::POWER_SCHEDULE_T::boosted;
+
+
+
+
+            std::chrono::seconds TIMEOUT = std::chrono::seconds(std::atoi(argv[5]));
+            std::filesystem::path COVERAGE_FILE = argv[8];
+
+            std::cout << "Greybox fuzzing program " << FUZZED_PROG << ", placing results into folder " << RESULT_FUZZ << ", minimize=" << MINIMIZE << ", type=" << fuzzInputType << ", timeout=" << TIMEOUT.count() << ", known_bugs=" << NB_KNOWN_BUGS << std::endl;
+
+            if (argc <= 9)
+            {
+                std::cerr << "Seed directory not provided" << std::endl;
+                fuzzer_greybox greybox(std::move(FUZZED_PROG), std::move(RESULT_FUZZ), std::move(MINIMIZE), std::move(fuzzInputType), std::move(TIMEOUT), std::move(NB_KNOWN_BUGS), schedule, std::move(COVERAGE_FILE));
+                myFuzzer = &greybox;
+                greybox.run();
+            }
+            else
+            {
+                std::filesystem::path INPUT_SEEDS = argv[8];
+                std::cerr << "Seed directory provided: " << INPUT_SEEDS << std::endl;
+                fuzzer_greybox greybox(std::move(FUZZED_PROG), std::move(RESULT_FUZZ), std::move(MINIMIZE), std::move(fuzzInputType), std::move(TIMEOUT), std::move(NB_KNOWN_BUGS), schedule, std::move(COVERAGE_FILE), std::move(INPUT_SEEDS));
+                myFuzzer = &greybox;
+                greybox.run();
+            }
+        }
+
     }
     catch (const std::exception& e)
     {

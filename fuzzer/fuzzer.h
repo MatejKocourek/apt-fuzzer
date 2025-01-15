@@ -17,6 +17,12 @@
 #include <regex>
 #include <csignal>
 #include "median.h"
+#include <utility>
+#include <set>
+
+//std::unreachable();
+#define UNREACHABLE assert(false)
+//__builtin_unreachable()
 
 //thread_local std::random_device rd;  // Seed for the random number engine
 /*thread_local */std::mt19937 gen/*(rd())*/; // Mersenne Twister engine seeded with `rd`
@@ -24,19 +30,8 @@
 static const std::regex errorTypeRegex("ERROR: AddressSanitizer: (.*) on address");
 static const std::regex locationRegex("(main.c):(\\d+)");
 
-
-struct fuzzer {
-    std::atomic<size_t> nb_before_min = 0;
-    std::atomic<size_t> nb_failed_runs = 0;
-    std::atomic<size_t> nb_hanged_runs = 0;
-
-    StatisticsMemory<double> statisticsExecution;
-    StatisticsMemory<double> statisticsMinimization;
-    StatisticsMemory<uint32_t> statisticsMinimizationSteps;
-
-    std::atomic<bool> keepRunning = true;
-
-    static std::string generateRandomAlphaNum(std::size_t size) {
+namespace generators {
+    std::string generateRandomAlphaNum(std::size_t size) {
         constexpr char alphaNumerical[] = { '0','1','2','3','4','5','6','7','8','9','A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q','R','S','T','U','V','W','X','Y','Z','a','b','c','d','e','f','g','h','i','j','k','l','m','n','o','p','q','r','s','t','u','v','w','x','y','z' };
         std::uniform_int_distribution<int> dist(0, sizeof(alphaNumerical) - 1);
 
@@ -52,7 +47,7 @@ struct fuzzer {
         return randomString;
     }
 
-    static std::string generateRandomString(std::size_t size, int minChar, int maxChar) {
+    std::string generateRandomString(std::size_t size, int minChar, int maxChar) {
         if (minChar > maxChar) [[unlikely]]
             throw std::invalid_argument("min must be less than or equal to max");
 
@@ -72,7 +67,7 @@ struct fuzzer {
             return randomString;
     }
 
-    static std::string generateRandomNum(int min, int max) {
+    std::string generateRandomNum(int min, int max) {
         if (min > max) [[unlikely]]
             throw std::invalid_argument("min must be less than or equal to max");
 
@@ -80,6 +75,94 @@ struct fuzzer {
 
             return std::to_string(dist(gen));
     }
+}
+
+
+namespace mutants {
+    void deleteBlock(std::string& str)
+    {
+        if (str.size() <= 1) [[unlikely]]
+            return;
+
+        std::exponential_distribution<double> distLen(1.0);
+        int blockSize = 1 + lround(distLen(gen));
+
+        if ((int)str.size() - blockSize <= 0) [[unlikely]]
+            return;//Don't generate empty strings
+
+        std::uniform_int_distribution<int> distStart(0, str.size() - 2);
+        int start = distStart(gen);
+
+        blockSize = std::min(blockSize, (int)str.size() - start);
+
+        str.erase(start, blockSize);
+    }
+    void insertBlock(std::string& input)
+    {
+        std::exponential_distribution<double> distLen(1.0);
+        size_t blockLen = 1 + round(distLen(gen));
+        std::uniform_int_distribution<size_t> distStart(0, input.size());
+        size_t blockStart = distStart(gen);
+
+        input.insert(blockStart, generators::generateRandomString(blockLen,33,126));
+    }
+    void flipBit(std::string& input)
+    {
+        std::uniform_int_distribution<size_t> distPos(0, input.size() - 1);
+        std::uniform_int_distribution<int> distBit(0, 7);
+
+        input[distPos(gen)] ^= (1 << distBit(gen));
+    }
+    void add(std::string& input)
+    {
+        std::uniform_int_distribution<size_t> distPos(0, input.size() - 1);
+        std::exponential_distribution<double> distVal(1);
+
+        std::uniform_int_distribution<int> negative(0, 1);
+
+        int val = 1 +round(distVal(gen));
+        val *= 2 * negative(gen) - 1;
+
+        input[distPos(gen)] += val;
+    }
+
+    void randomMutant(std::string& input)
+    {
+        std::uniform_int_distribution<int> mutants(0, 3);
+        switch (mutants(gen))
+        {
+        case 0:
+            return deleteBlock(input);
+        case 1:
+            return insertBlock(input);
+        case 2:
+            return flipBit(input);
+        case 3:
+            return add(input);
+
+        default:
+            UNREACHABLE;
+        }
+    }
+    void randomNumberOfRandomMutants(std::string& input)
+    {
+        std::exponential_distribution<double> distVal(1);
+
+        for (size_t i = 1 + round(distVal(gen)); i != 0; i--)
+            randomMutant(input);
+    }
+}
+
+struct fuzzer {
+    std::atomic<size_t> nb_before_min = 0;
+    std::atomic<size_t> nb_failed_runs = 0;
+    std::atomic<size_t> nb_hanged_runs = 0;
+
+    StatisticsMemory<double> statisticsExecution;
+    StatisticsMemory<double> statisticsMinimization;
+    StatisticsMemory<uint32_t> statisticsMinimizationSteps;
+
+    std::atomic<bool> keepRunning = true;
 
     struct ExecutionResult {
         int return_code;
@@ -93,20 +176,20 @@ struct fuzzer {
 
     struct ExecutionInput
     {
-        ExecutionInput(std::string executablePath, std::chrono::milliseconds timeout) : executablePath(std::move(executablePath)), timeout(std::move(timeout)) {}
+        ExecutionInput(std::filesystem::path executablePath, std::chrono::milliseconds timeout) : executablePath(std::move(executablePath)), timeout(std::move(timeout)) {}
 
         virtual std::vector<std::string> getArguments() const = 0;
         virtual std::string_view getCin() const = 0;
 
         virtual void setInput(const std::string_view& input) = 0;
 
-        const std::string executablePath;
+        const std::filesystem::path executablePath;
         const std::chrono::milliseconds timeout;
     };
 
     struct FileInput final : public ExecutionInput
     {
-        FileInput(std::string executablePath, std::chrono::milliseconds timeout, std::string path) : ExecutionInput(std::move(executablePath), std::move(timeout)), path(std::move(path)) {}
+        FileInput(std::filesystem::path executablePath, std::chrono::milliseconds timeout, std::string path) : ExecutionInput(std::move(executablePath), std::move(timeout)), path(std::move(path)) {}
 
         virtual std::vector<std::string> getArguments() const final
         {
@@ -128,7 +211,7 @@ struct fuzzer {
 
     struct CinInput final : public ExecutionInput
     {
-        CinInput(std::string executablePath, std::chrono::milliseconds timeout) : ExecutionInput(std::move(executablePath), std::move(timeout)) {}
+        CinInput(std::filesystem::path executablePath, std::chrono::milliseconds timeout) : ExecutionInput(std::move(executablePath), std::move(timeout)) {}
 
         virtual std::vector<std::string> getArguments() const final
         {
@@ -164,7 +247,7 @@ struct fuzzer {
         //    arguments.push_back(std::string(executionInput.getArgument()).c_str());
 
         auto start = std::chrono::high_resolution_clock::now();
-        child process(executionInput.executablePath, executionInput.getArguments(), std_out > stdout_stream, std_err > stderr_stream, std_in < stdin_stream);
+        child process(executionInput.executablePath.c_str(), executionInput.getArguments(), std_out > stdout_stream, std_err > stderr_stream, std_in < stdin_stream);
 
         // Feed the process's standard input.
         stdin_stream << executionInput.getCin();
@@ -392,6 +475,8 @@ struct fuzzer {
                             asan = "heap";
                         else if (match[1] == "stack-buffer-overflow")
                             asan = "stack";
+                        else if (match[1] == "global-buffer-overflow")
+                            asan = "global";
                         else
                             asan = match[1];
                         //std::filesystem::path(std::string(match2[1])).filename().string()
@@ -568,15 +653,12 @@ struct fuzzer {
             std::cerr << "Error saving report!" << std::endl;
     }
 
-    const std::string FUZZED_PROG;
+    const std::filesystem::path FUZZED_PROG;
     const std::filesystem::path RESULT_FUZZ;
     const bool MINIMIZE;
     const std::string_view fuzzInputType;
     const std::chrono::seconds TIMEOUT;
     const size_t NB_KNOWN_BUGS;
-
-    const size_t minSize = 1;
-    const size_t maxSize = 1024;
 
 
     std::mutex m;
@@ -631,10 +713,10 @@ struct fuzzer {
           //  std::cerr << "Stats saved." << std::endl;
     }
 
-    void dealWithResult(const std::string_view& input, ExecutionResult result, ExecutionInput& executionInput, bool fromMin)
+    bool dealWithResult(const std::string_view& input, ExecutionResult result, ExecutionInput& executionInput, bool fromMin)
     {
         if (!keepRunning)
-            return;
+            return false;
 
         CrashReport report;
         size_t errorCount;
@@ -642,7 +724,7 @@ struct fuzzer {
             auto err = detectError(result);
 
             if (err == nullptr)
-                return; //OK, no error
+                return false; //OK, no error
 
             {
                 std::unique_lock lock(m);
@@ -652,7 +734,7 @@ struct fuzzer {
                     if (*err == *uniqueResults[i])//Error already logged
                     {
                         //std::cerr << "This error was already found, nothing new" << std::endl;
-                        return;
+                        return true;
                     }
 
                 }
@@ -691,15 +773,22 @@ struct fuzzer {
 
 
         saveReport(report, std::to_string(errorCount) + ".json", RESULT_FUZZ);
+        return true;
     }
 
-    void fuzz()
+    virtual void fuzz() = 0;
+
+
+    std::unique_ptr<ExecutionInput> executionInput;
+
+public:
+    fuzzer(std::filesystem::path FUZZED_PROG, std::filesystem::path RESULT_FUZZ, bool MINIMIZE, std::string_view fuzzInputType, std::chrono::seconds TIMEOUT, size_t NB_KNOWN_BUGS) : FUZZED_PROG(FUZZED_PROG), RESULT_FUZZ(RESULT_FUZZ), MINIMIZE(MINIMIZE), fuzzInputType(fuzzInputType), TIMEOUT(TIMEOUT), NB_KNOWN_BUGS(NB_KNOWN_BUGS)//, minSize(minSize), maxSize(maxSize)
     {
+        std::filesystem::create_directories(RESULT_FUZZ);
+        std::filesystem::create_directories(RESULT_FUZZ / "crashes");
+        std::filesystem::create_directories(RESULT_FUZZ / "hangs");
+
         constexpr std::chrono::milliseconds timeout = std::chrono::seconds(5);
-
-        std::uniform_int_distribution<size_t> dist(minSize, maxSize);
-
-        std::unique_ptr<ExecutionInput> executionInput;
 
         if (fuzzInputType == "stdin")
         {
@@ -711,47 +800,20 @@ struct fuzzer {
             //std::cerr << "Using file as input" << std::endl;
             executionInput = std::make_unique<FileInput>(FUZZED_PROG, timeout, std::string(fuzzInputType));
         }
-
-        std::stack<std::pair<std::string, ExecutionResult>> unprocessedErrors;
-
-        while (keepRunning)
-        {
-            std::string input = (statisticsExecution.count() % 2 == 0) ? generateRandomString(dist(gen), 33, 126) : generateRandomNum(1, 1000000);
-
-            executionInput->setInput(input);
-
-            auto res = execute_with_timeout(*executionInput);
-
-            dealWithResult(input, std::move(res), *executionInput, false);
-
-        }
-        //std::cerr << "Exiting fuzzer" << std::endl;
-    }
-
-
-public:
-    fuzzer(std::string FUZZED_PROG, std::filesystem::path RESULT_FUZZ, bool MINIMIZE, std::string_view fuzzInputType, std::chrono::seconds TIMEOUT, size_t NB_KNOWN_BUGS, size_t minSize = 1, size_t maxSize = 1024) : FUZZED_PROG(FUZZED_PROG), RESULT_FUZZ(RESULT_FUZZ), MINIMIZE(MINIMIZE), fuzzInputType(fuzzInputType), TIMEOUT(TIMEOUT), NB_KNOWN_BUGS(NB_KNOWN_BUGS), minSize(minSize), maxSize(maxSize)
-    {
-        if (!std::filesystem::exists(FUZZED_PROG))
-            throw std::runtime_error("Program to fuzz does not exist");
-
-        std::filesystem::create_directories(RESULT_FUZZ);
-        std::filesystem::create_directories(RESULT_FUZZ / "crashes");
-        std::filesystem::create_directories(RESULT_FUZZ / "hangs");
     }
 
     void run()
     {
         std::atomic<bool> threadsRunning = true;
-        std::jthread updateStats([&]() {
-            while (threadsRunning)
-            {
-                saveStatistics();
-                std::this_thread::sleep_for(std::chrono::seconds(10));
-            }
-            std::cerr << "Program can end, writing one last statistics report and exiting..." << std::endl;
-            saveStatistics();
-            });
+        //std::jthread updateStats([&]() {
+        //    while (threadsRunning)
+        //    {
+        //        saveStatistics();
+        //        std::this_thread::sleep_for(std::chrono::seconds(10));
+        //    }
+        //    std::cerr << "Program can end, writing one last statistics report and exiting..." << std::endl;
+        //    saveStatistics();
+        //    });
 
         //std::jthread worker([&]() {
         //    std::this_thread::sleep_for(TIMEOUT); // Wait for the set time
@@ -779,4 +841,354 @@ public:
     {
         keepRunning = false;
     }
+
+
+    static std::string generateRandomInput()
+    {
+        std::uniform_int_distribution<int> whichInput(0, 1);
+
+        const size_t minSize = 1;
+        const size_t maxSize = 1024;
+
+        std::uniform_int_distribution<size_t> dist(minSize, maxSize);
+
+        switch (whichInput(gen))
+        {
+        case 0:
+            return generators::generateRandomString(dist(gen), 33, 126);
+        case 1:
+            return generators::generateRandomNum(1, 1000000);
+        default:
+            UNREACHABLE;
+        }
+    }
+};
+
+struct fuzzer_blackbox : public fuzzer
+{
+    fuzzer_blackbox(std::filesystem::path FUZZED_PROG, std::filesystem::path RESULT_FUZZ, bool MINIMIZE, std::string_view INPUT, std::chrono::seconds TIMEOUT, size_t NB_KNOWN_BUGS/*, size_t minSize = 1, size_t maxSize = 1024*/) : fuzzer(std::move(FUZZED_PROG), std::move(RESULT_FUZZ), std::move(MINIMIZE), std::move(INPUT), std::move(TIMEOUT), std::move(NB_KNOWN_BUGS))//, minSize(minSize), maxSize(maxSize)
+    {
+        if (!std::filesystem::exists(FUZZED_PROG) || std::filesystem::is_directory(FUZZED_PROG))
+            throw std::runtime_error("Program to fuzz does not exist");
+    }
+
+    void fuzz()
+    {
+        while (keepRunning)
+        {
+            auto input = generateRandomInput();
+
+            executionInput->setInput(input);
+
+            auto res = execute_with_timeout(*executionInput);
+
+            dealWithResult(input, std::move(res), *executionInput, false);
+        }
+        //std::cerr << "Exiting fuzzer" << std::endl;
+    }
+
+};
+
+static const std::regex linesFound("LF:(\\d+)");
+static const std::regex linesHit("LH:(\\d+)");
+
+struct fuzzer_greybox : public fuzzer
+{
+    static std::string loadFile(const std::filesystem::path& path)
+    {
+        auto file = std::ifstream(path);
+
+        if (!file.is_open())
+            throw std::runtime_error("Cannot open file: " + path.string());
+
+        std::string sourcecode = std::string(std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>());
+
+        if (file.fail())
+            throw std::runtime_error("Error reading file: " + path.string());
+
+        return sourcecode;
+    }
+
+    enum class POWER_SCHEDULE_T : uint8_t
+    {
+        simple,
+        boosted
+    };
+
+    struct seed {
+        seed(std::string&& input, const std::string& h, double coverage, double e, size_t nm = 1, size_t nc = 1) : input(std::move(input)), h(h), coverage(coverage), e(e), nm(nm), nc(nc) { }
+        const std::string input;
+        const std::string& h; //hash of the output
+        const double coverage; //coverage of the output
+        double e; //energy
+
+        //std::chrono::duration<double, std::milli> T; // execution time
+        //size_t s; // size in bytes
+        size_t nm; // how many times it was already selected to be mutated
+        size_t nc; // how many times it led to an increase in coverage
+
+        bool operator< (const seed& other) const
+        {
+            return e > other.e;
+        }
+    };
+
+    std::multiset<seed> queue;
+
+    fuzzer_greybox(std::filesystem::path FUZZED_PROG, std::filesystem::path RESULT_FUZZ, bool MINIMIZE, std::string_view INPUT, std::chrono::seconds TIMEOUT, size_t NB_KNOWN_BUGS, POWER_SCHEDULE_T POWER_SCHEDULE, std::filesystem::path COVERAGE_FILE, std::filesystem::path INPUT_SEEDS) : fuzzer(std::move(FUZZED_PROG),std::move(RESULT_FUZZ),std::move(MINIMIZE),std::move(INPUT),std::move(TIMEOUT),std::move(NB_KNOWN_BUGS)), POWER_SCHEDULE(std::move(POWER_SCHEDULE)), COVERAGE_FILE(std::move(COVERAGE_FILE)), INPUT_SEEDS(std::move(INPUT_SEEDS))
+    {
+        if (!std::filesystem::exists(this->FUZZED_PROG) || std::filesystem::is_directory(this->FUZZED_PROG))
+            throw std::runtime_error("Program to fuzz does not exist");
+    }
+
+
+
+    //double rankAFL(const seed& s)
+    //{
+    //    return s.T.count() * s.input.size() * s.nm / s.nc;
+    //}
+    //double rankExp(const seed& s)
+    //{
+    //    return 1.0 / std::pow(hashmap.at(*s.h), 5);
+    //}
+
+    //seed& weightedRandomChoiceAFL(std::vector<seed>& options)
+    //{
+    //    return weightedRandomChoice(options, rankAFL);
+    //}
+    //seed& weightedRandomChoiceExp(std::vector<seed>& options)
+    //{
+    //    return weightedRandomChoice(options, rankExp);
+    //}
+
+    double bestCoverage = 0;
+    std::unordered_map<std::string, size_t> hashmap;
+
+
+    static seed weightedRandomChoice(std::multiset<seed>& options, float percent) {
+        // Calculate the total weight
+
+        double totalWeight = 0;
+
+
+        const size_t firstTenPercent = options.size() * percent;
+        const double coefficientGood = 0.5 / firstTenPercent;
+        const double coefficientWorse = 0.5 / (options.size() - firstTenPercent);
+
+        size_t i = 0;
+        for (auto it = options.begin(); it != options.end(); it++) {
+            if (i <= firstTenPercent)
+                totalWeight += it->e * coefficientGood; // Better score
+            else
+                totalWeight += it->e * coefficientWorse; // Worse score
+            i++;
+        }
+
+
+
+        
+        std::uniform_real_distribution<> dis(0.0, totalWeight); // Range [0, totalWeight)
+
+        // Generate a random number
+        double randomValue = dis(gen);
+
+        // Find the chosen option based on the random value
+        double cumulativeWeight = 0.0;
+
+
+        i = 0;
+        for (auto it = options.begin(); it != options.end(); it++) {
+            if(i <= firstTenPercent)
+                cumulativeWeight += it->e * coefficientGood; // Better score
+            else
+                cumulativeWeight += it->e * coefficientWorse; // Worse score
+
+            if (randomValue <= cumulativeWeight) {
+                return std::move(options.extract(it).value());
+                //return option;
+            }
+            i++;
+        }
+
+        // If we get here, there was an issue (e.g., no options, weights not positive)
+        throw std::runtime_error("Failed to select a weighted random choice.");
+    }
+
+    //static seed weightedRandomChoiceNormal(std::multiset<seed>& options) {
+    //    // Calculate the total weight
+    //    double totalWeight = 0.0;
+    //    for (const auto& option : options) {
+    //        totalWeight += option.e;
+    //    }
+
+    //    std::uniform_real_distribution<> dis(0.0, totalWeight); // Range [0, totalWeight)
+
+    //    // Generate a random number
+    //    double randomValue = dis(gen);
+
+    //    // Find the chosen option based on the random value
+    //    double cumulativeWeight = 0.0;
+
+    //    size_t i = 0;
+    //    for (auto it = options.begin(); it != options.end(); it++) {
+    //        cumulativeWeight += it->e;
+
+    //        if (randomValue <= cumulativeWeight) {
+    //            return std::move(options.extract(it).value());
+    //            //return option;
+    //        }
+    //        i++;
+    //    }
+
+    //    // If we get here, there was an issue (e.g., no options, weights not positive)
+    //    throw std::runtime_error("Failed to select a weighted random choice.");
+    //}
+
+    static double coverage(const std::string& lcov)
+    {
+        size_t covered;
+        size_t total;
+
+        std::smatch match;
+        if (!std::regex_search(lcov, match, linesHit))
+            throw std::runtime_error("LCOV file not valid");
+
+        covered = std::stoull(match[1]);
+
+        if (!std::regex_search(lcov, match, linesFound))
+            throw std::runtime_error("LCOV file not valid");
+
+        total = std::stoull(match[1]);
+
+        return static_cast<double>(covered) / total;
+    }
+
+    void fuzz()
+    {
+        // Run for initial seeds without mutating
+        std::cerr << "Executing initial seeds" << std::endl;
+        for (const auto& i : std::filesystem::directory_iterator(INPUT_SEEDS))
+        {
+            if (i.is_regular_file())
+            {
+                // Run directly on this seed
+                auto input = loadFile(i.path());
+                executionInput->setInput(input);
+
+
+                auto res = execute_with_timeout(*executionInput);
+                
+                bool error = dealWithResult(input, std::move(res), *executionInput, false);
+
+                if (error)
+                {
+                    queue.emplace(std::move(input), "", 0, 1, 2, 2);
+                }
+                else
+                {
+                    auto lcov = loadFile(COVERAGE_FILE);
+                    auto executedCoverage = coverage(lcov);
+
+                    auto it = hashmap.emplace(std::move(lcov), 0);
+                    it.first->second++;;
+                    const auto& executedCoverageOutput = it.first->first;
+                    queue.emplace(std::move(input), executedCoverageOutput, executedCoverage, 1);
+                }
+            }
+        }
+        std::cerr << "Mutating" << std::endl;
+        while (keepRunning)
+        {
+            float coefficient;
+            switch (POWER_SCHEDULE)
+            {
+            case POWER_SCHEDULE_T::simple:
+                coefficient = 0.1;
+                break;
+            case POWER_SCHEDULE_T::boosted:
+                coefficient = 0;
+                break;
+            default:
+                UNREACHABLE;
+            }
+            auto selected = weightedRandomChoice(queue, coefficient);
+
+            //std::cerr << "Selected: " << std::endl << selected.input << std::endl;
+
+            selected.nm++;
+
+            std::string mutoString = selected.input;
+
+            mutants::randomNumberOfRandomMutants(mutoString);
+
+            //std::cerr << "Mutated to: " << std::endl << mutoString << std::endl;
+
+            executionInput->setInput(mutoString);
+
+            auto res = execute_with_timeout(*executionInput);
+
+            auto lcov = loadFile(COVERAGE_FILE);
+
+            auto executedCoverage = coverage(lcov);
+
+            auto it = hashmap.emplace(std::move(lcov), 0);
+            it.first->second++;;
+            const auto& executedCoverageOutput = it.first->first;
+
+            //hashmap[lcov]++;
+
+
+            dealWithResult(mutoString, res, *executionInput, false);
+            
+
+            if (executedCoverage > bestCoverage)
+            {
+                bestCoverage = executedCoverage;
+            }
+            if (executedCoverage >= selected.coverage && executedCoverageOutput != selected.h)
+            {
+                selected.nc++;
+
+                //Add new interesting seed
+                queue.emplace(std::move(mutoString), executedCoverageOutput, executedCoverage, 1);
+            }
+            
+
+            switch (POWER_SCHEDULE)
+            {
+            case POWER_SCHEDULE_T::simple:
+                selected.e = 1.0 / (res.execution_time.count() * selected.input.size() * selected.nm / selected.nc);
+                break;
+            case POWER_SCHEDULE_T::boosted:
+                selected.e = 1.0 / std::pow(hashmap.at(selected.h), 5);
+                break;
+            default:
+                UNREACHABLE;
+            }
+
+            // Return original seed back
+            queue.insert(std::move(selected));
+        }
+    }
+
+    void populateWithMySeeds()
+    {
+        std::filesystem::create_directories(INPUT_SEEDS);
+
+        for (size_t i = 0; i < 1024; i++)
+        {
+            std::filesystem::path path = INPUT_SEEDS / (std::to_string(i) + ".txt");
+            std::ofstream outFile(path);
+            outFile << generateRandomInput();
+        }
+    }
+
+    fuzzer_greybox(std::filesystem::path FUZZED_PROG, std::filesystem::path RESULT_FUZZ, bool MINIMIZE, std::string_view INPUT, std::chrono::seconds TIMEOUT, size_t NB_KNOWN_BUGS, POWER_SCHEDULE_T POWER_SCHEDULE, std::filesystem::path COVERAGE_FILE) : fuzzer_greybox(std::move(FUZZED_PROG), std::move(RESULT_FUZZ), std::move(MINIMIZE), std::move(INPUT), std::move(TIMEOUT), std::move(NB_KNOWN_BUGS), std::move(POWER_SCHEDULE), std::move(COVERAGE_FILE), "MY_SEED")
+    {
+        populateWithMySeeds();
+    }
+
+    const POWER_SCHEDULE_T POWER_SCHEDULE;
+    const std::filesystem::path INPUT_SEEDS;
+    const std::filesystem::path COVERAGE_FILE;
 };

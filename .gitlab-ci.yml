@@ -49,6 +49,7 @@ task2-test:
   artifacts:
     paths:
       - "fuzzer/coverage.txt" # contains just the coverage percentage as a number
+      - "code-coverage/mutation.txt" # contains the mutation score as a number
 
 task1-benchmark:
   stage: test
@@ -94,3 +95,19 @@ task2-grade:
     - export PROJECT_DIR=$PWD
     - cd /grader
     - ./grade --task 2 $PROJECT_DIR/fuzzer
+
+task2-grade:
+  image:
+    name: pierredb/ni-apt-grader:latest
+    pull_policy: always
+  rules:
+    - changes: 
+      - code-coverage/*
+      - fuzzer/*
+      - .gitlab-ci.yml
+  stage: test
+  #needs: ["task2-test"]
+  script:
+    - export PROJECT_DIR=$PWD
+    - cd /grader
+    - ./grade --task 3 $PROJECT_DIR/fuzzer
