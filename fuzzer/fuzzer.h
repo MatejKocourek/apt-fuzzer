@@ -810,15 +810,15 @@ public:
     void run()
     {
         std::atomic<bool> threadsRunning = true;
-        //std::jthread updateStats([&]() {
-        //    while (threadsRunning)
-        //    {
-        //        saveStatistics();
-        //        std::this_thread::sleep_for(std::chrono::seconds(10));
-        //    }
-        //    std::cerr << "Program can end, writing one last statistics report and exiting..." << std::endl;
-        //    saveStatistics();
-        //    });
+        std::jthread updateStats([&]() {
+            while (threadsRunning)
+            {
+                saveStatistics();
+                std::this_thread::sleep_for(std::chrono::seconds(10));
+            }
+            std::cerr << "Program can end, writing one last statistics report and exiting..." << std::endl;
+            saveStatistics();
+            });
 
         //std::jthread worker([&]() {
         //    std::this_thread::sleep_for(TIMEOUT); // Wait for the set time
@@ -876,7 +876,7 @@ struct fuzzer_blackbox : public fuzzer
 
     }
 
-    void fuzz()
+    virtual void fuzz() override
     {
         while (keepRunning)
         {
@@ -1082,7 +1082,7 @@ struct fuzzer_greybox : public fuzzer
     void fuzz()
     {
         // Run for initial seeds without mutating
-        std::cerr << "Executing initial seeds" << std::endl;
+        std::cerr << "Executing initial seeds..." << std::endl;
         for (const auto& i : std::filesystem::directory_iterator(INPUT_SEEDS))
         {
             if (i.is_regular_file())
@@ -1112,7 +1112,8 @@ struct fuzzer_greybox : public fuzzer
                 }
             }
         }
-        std::cerr << "Mutating" << std::endl;
+        std::cerr << "Loaded " << queue.size() << " seeds." << std::endl;
+        std::cerr << "Mutating..." << std::endl;
         while (keepRunning)
         {
             float coefficient;
@@ -1189,6 +1190,7 @@ struct fuzzer_greybox : public fuzzer
 
     void populateWithMySeeds()
     {
+        std::cerr << "Populating folder with my seeds" << std::endl;
         std::filesystem::create_directories(INPUT_SEEDS);
 
         for (size_t i = 0; i < 1024; i++)
