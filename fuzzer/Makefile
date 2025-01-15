@@ -4,6 +4,7 @@ CC = gcc
 # Directories
 
 PROJECT_DIR ?= $(shell dirname $(PWD))
+POWER_SCHEDULE ?= simple
 
 BUILD_DIR = $(PROJECT_DIR)/fuzzer/build
 BUILD_DIR_TEST = $(PROJECT_DIR)/fuzzer/build/test
