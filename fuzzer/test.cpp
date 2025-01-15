@@ -273,7 +273,7 @@ TEST_F(FuzzerFalse, fuzzer_fuzz) {
 		std::ifstream createdFileStats("/tmp/fuzzer/stats.json");
 		createdFileStats >> read;
 
-		EXPECT_EQ(read.substr(0, 105), "{\"fuzzer_name\":\"kocoumat\",\"fuzzed_program\":\"/bin/false\",\"nb_runs\":6,\"nb_failed_runs\":6,\"nb_hanged_runs\":0");
+		EXPECT_EQ(read.substr(0, 107), "{\"fuzzer_name\":\"kocoumat\",\"fuzzed_program\":\"/bin/false\",\"nb_runs\":10,\"nb_failed_runs\":10,\"nb_hanged_runs\":0");
 	}
 	catch (const std::exception& e)
 	{
