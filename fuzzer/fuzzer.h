@@ -902,21 +902,34 @@ struct fuzzer_blackbox : public fuzzer
 static const std::regex linesFound("LF:(\\d+)");
 static const std::regex linesHit("LH:(\\d+)");
 
+static std::string loadFile(const std::filesystem::path& path)
+{
+    auto file = std::ifstream(path);
+
+    if (!file.is_open())
+        throw std::runtime_error("Cannot open file: " + path.string());
+
+    std::string sourcecode = std::string(std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>());
+
+    if (file.fail())
+        throw std::runtime_error("Error reading file: " + path.string());
+
+    return sourcecode;
+}
+
 struct fuzzer_greybox : public fuzzer
 {
-    static std::string loadFile(const std::filesystem::path& path)
+    double powerSchedule(double time, size_t size, size_t nm, size_t nc, const std::string& hash)
     {
-        auto file = std::ifstream(path);
-
-        if (!file.is_open())
-            throw std::runtime_error("Cannot open file: " + path.string());
-
-        std::string sourcecode = std::string(std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>());
-
-        if (file.fail())
-            throw std::runtime_error("Error reading file: " + path.string());
-
-        return sourcecode;
+        switch (POWER_SCHEDULE)
+        {
+        case POWER_SCHEDULE_T::simple:
+            return 1.0 / (time * size * nm / nc);
+        case POWER_SCHEDULE_T::boosted:
+            return 1.0 / std::pow(hashmap.at(hash), 5);
+        default:
+            UNREACHABLE;
+        }
     }
 
     enum class POWER_SCHEDULE_T : uint8_t
@@ -926,13 +939,16 @@ struct fuzzer_greybox : public fuzzer
     };
 
     struct seed {
-        seed(std::string&& input, const std::string& h, double coverage, double e, size_t nm = 1, size_t nc = 1) : input(std::move(input)), h(h), coverage(coverage), e(e), nm(nm), nc(nc) { }
+        seed(std::string&& input, const std::string& h, double T, double e, size_t nm = 1, size_t nc = 1) : input(std::move(input)), h(h), T(T), e(e), nm(nm), nc(nc)
+        {
+
+        }
         const std::string input;
         const std::string& h; //hash of the output
-        const double coverage; //coverage of the output
+        //const double coverage; //coverage of the output
         double e; //energy
 
-        //std::chrono::duration<double, std::milli> T; // execution time
+        const double T; // execution time
         //size_t s; // size in bytes
         size_t nm; // how many times it was already selected to be mutated
         size_t nc; // how many times it led to an increase in coverage
@@ -994,9 +1010,9 @@ struct fuzzer_greybox : public fuzzer
         size_t i = 0;
         for (auto it = options.begin(); it != options.end(); it++) {
             if (i <= firstTenPercent)
-                totalWeight += it->e * coefficientGood; // Better score
+                totalWeight += coefficientGood;// totalWeight += it->e * coefficientGood; // Better score
             else
-                totalWeight += it->e * coefficientWorse; // Worse score
+                totalWeight += coefficientWorse;// totalWeight += it->e * coefficientWorse; // Worse score
             i++;
         }
 
@@ -1014,10 +1030,10 @@ struct fuzzer_greybox : public fuzzer
 
         i = 0;
         for (auto it = options.begin(); it != options.end(); it++) {
-            if(i <= firstTenPercent)
-                cumulativeWeight += it->e * coefficientGood; // Better score
+            if (i <= firstTenPercent)
+                cumulativeWeight += coefficientGood;// cumulativeWeight += it->e * coefficientGood; // Better score
             else
-                cumulativeWeight += it->e * coefficientWorse; // Worse score
+                cumulativeWeight += coefficientWorse;// cumulativeWeight += it->e * coefficientWorse; // Worse score
 
             if (randomValue <= cumulativeWeight) {
                 return std::move(options.extract(it).value());
@@ -1079,6 +1095,7 @@ struct fuzzer_greybox : public fuzzer
         return static_cast<double>(covered) / total;
     }
 
+
     void fuzz()
     {
         // Run for initial seeds without mutating
@@ -1096,6 +1113,8 @@ struct fuzzer_greybox : public fuzzer
                 
                 auto error = dealWithResult(input, std::move(res), *executionInput, false);
 
+                const std::string* executedCoverageOutput;
+
                 if (error)
                 {
                     // Use bug info as a hash
@@ -1103,9 +1122,7 @@ struct fuzzer_greybox : public fuzzer
                     error->bugInfo(ss);
                     auto it = hashmap.emplace(ss.str(), 0);
                     it.first->second++;;
-                    const auto& executedCoverageOutput = it.first->first;
-
-                    queue.emplace(std::move(input), executedCoverageOutput, 0, 1, 2, 2);
+                    executedCoverageOutput = &it.first->first;
                 }
                 else
                 {
@@ -1117,9 +1134,10 @@ struct fuzzer_greybox : public fuzzer
 
                     auto it = hashmap.emplace(std::move(lcov), 0);
                     it.first->second++;;
-                    const auto& executedCoverageOutput = it.first->first;
-                    queue.emplace(std::move(input), executedCoverageOutput, executedCoverage, 1);
+                    executedCoverageOutput = &it.first->first;
                 }
+
+                queue.emplace(std::move(input), *executedCoverageOutput, res.execution_time.count(), powerSchedule(res.execution_time.count(), input.size(), 1, 1, *executedCoverageOutput));
             }
         }
         std::cerr << "Loaded " << queue.size() << " seeds." << std::endl;
@@ -1144,17 +1162,17 @@ struct fuzzer_greybox : public fuzzer
 
             selected.nm++;
 
-            std::string mutoString = selected.input;
+            std::string mutant = selected.input;
 
-            mutants::randomNumberOfRandomMutants(mutoString);
+            mutants::randomNumberOfRandomMutants(mutant);
 
             //std::cerr << "Mutated to: " << std::endl << mutoString << std::endl;
 
-            executionInput->setInput(mutoString);
+            executionInput->setInput(mutant);
 
             auto res = execute_with_timeout(*executionInput);
             
-            auto error = dealWithResult(mutoString, res, *executionInput, false);
+            auto error = dealWithResult(mutant, res, *executionInput, false);
 
             if (error)
             {
@@ -1168,7 +1186,7 @@ struct fuzzer_greybox : public fuzzer
                 selected.nc++;
 
                 //Add new interesting seed (crashing)
-                queue.emplace(std::move(mutoString), executedCoverageOutput, 1, 1, 2, 2);
+                queue.emplace(std::move(mutant), executedCoverageOutput, res.execution_time.count(), powerSchedule(res.execution_time.count(), mutant.size(), 2, 2, executedCoverageOutput), 2, 2);
             }
             else
             {
@@ -1180,32 +1198,25 @@ struct fuzzer_greybox : public fuzzer
                 it.first->second++;;
                 const auto& executedCoverageOutput = it.first->first;
 
-                if (executedCoverage > bestCoverage)
+                if ((executedCoverage > bestCoverage) || (executedCoverage > bestCoverage && executedCoverageOutput != selected.h))
                 {
                     bestCoverage = executedCoverage;
-                }
-
-                if (executedCoverage >= selected.coverage && executedCoverageOutput != selected.h)
-                {
                     selected.nc++;
 
                     //Add new interesting seed (higher coverage)
-                    queue.emplace(std::move(mutoString), executedCoverageOutput, executedCoverage, 1);
+                    queue.emplace(std::move(mutant), executedCoverageOutput, res.execution_time.count(), powerSchedule(res.execution_time.count(), mutant.size(), 1, 1, executedCoverageOutput));
+                    //queue.emplace(std::move(mutant), executedCoverageOutput, 1);
                 }
+                //else if (executedCoverage == bestCoverage && executedCoverageOutput != selected.h)
+                //{
+                //    selected.nc++;
+
+                //    //Add new interesting seed (different result)
+                //    queue.emplace(std::move(mutant), executedCoverageOutput, res.execution_time.count(), powerSchedule(res.execution_time.count(), mutant.size(), 1, 1, executedCoverageOutput));
+                //}
             }
 
-
-            switch (POWER_SCHEDULE)
-            {
-            case POWER_SCHEDULE_T::simple:
-                selected.e = 1.0 / (res.execution_time.count() * selected.input.size() * selected.nm / selected.nc);
-                break;
-            case POWER_SCHEDULE_T::boosted:
-                selected.e = 1.0 / std::pow(hashmap.at(selected.h), 5);
-                break;
-            default:
-                UNREACHABLE;
-            }
+            selected.e = powerSchedule(selected.T, selected.input.size(), selected.nm, selected.nc, selected.h);
 
             // Return original seed back
             queue.insert(std::move(selected));
