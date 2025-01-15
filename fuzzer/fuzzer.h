@@ -670,7 +670,7 @@ struct fuzzer {
         output <<
             //"{"
                 "\"fuzzer_name\":"              "\"kocoumat\","
-                "\"fuzzed_program\":"           "\"" << FUZZED_PROG << "\","
+                "\"fuzzed_program\":"           "\"" << FUZZED_PROG.string() << "\","
                 "\"nb_runs\":" << statisticsExecution.count() << ","
                 "\"nb_failed_runs\":" << nb_failed_runs.load(std::memory_order_relaxed) << ","
                 "\"nb_hanged_runs\":" << nb_hanged_runs.load(std::memory_order_relaxed) << ","
@@ -690,7 +690,7 @@ struct fuzzer {
                         "\"min\":" << statisticsMinimization.min() << ","
                         "\"max\":" << statisticsMinimization.max() <<
                     "}"
-            "}"
+                "}"
             //"}"
             ;
     }
@@ -954,8 +954,8 @@ struct fuzzer_greybox : public fuzzer
     {
         out << '{';
         exportStatisticsCommon(out);
-        out << "\"nb_queued_seed\":" << queue.size() << ",";
-        out << "\"coverage\":" << bestCoverage*100 << ",";
+        out << "\",nb_queued_seed\":" << queue.size() << ",";
+        out << "\"coverage\":" << bestCoverage*100;
         out << '}';
     }
 
@@ -1105,6 +1105,9 @@ struct fuzzer_greybox : public fuzzer
                     auto lcov = loadFile(COVERAGE_FILE);
                     auto executedCoverage = coverage(lcov);
 
+                    if (executedCoverage > bestCoverage)
+                        bestCoverage = executedCoverage;
+
                     auto it = hashmap.emplace(std::move(lcov), 0);
                     it.first->second++;;
                     const auto& executedCoverageOutput = it.first->first;
@@ -1143,33 +1146,40 @@ struct fuzzer_greybox : public fuzzer
             executionInput->setInput(mutoString);
 
             auto res = execute_with_timeout(*executionInput);
-
-            auto lcov = loadFile(COVERAGE_FILE);
-
-            auto executedCoverage = coverage(lcov);
-
-            auto it = hashmap.emplace(std::move(lcov), 0);
-            it.first->second++;;
-            const auto& executedCoverageOutput = it.first->first;
-
-            //hashmap[lcov]++;
-
-
-            dealWithResult(mutoString, res, *executionInput, false);
             
+            auto isCrash = dealWithResult(mutoString, res, *executionInput, false);
 
-            if (executedCoverage > bestCoverage)
-            {
-                bestCoverage = executedCoverage;
-            }
-            if (executedCoverage >= selected.coverage && executedCoverageOutput != selected.h)
+            if (isCrash)
             {
                 selected.nc++;
 
-                //Add new interesting seed
-                queue.emplace(std::move(mutoString), executedCoverageOutput, executedCoverage, 1);
+                //Add new interesting seed (crashing)
+                queue.emplace(std::move(mutoString), "", 0, 1, 2, 2);
             }
-            
+            else
+            {
+                auto lcov = loadFile(COVERAGE_FILE);
+
+                auto executedCoverage = coverage(lcov);
+
+                auto it = hashmap.emplace(std::move(lcov), 0);
+                it.first->second++;;
+                const auto& executedCoverageOutput = it.first->first;
+
+                if (executedCoverage > bestCoverage)
+                {
+                    bestCoverage = executedCoverage;
+                }
+
+                if (executedCoverage >= selected.coverage && executedCoverageOutput != selected.h)
+                {
+                    selected.nc++;
+
+                    //Add new interesting seed (higher coverage)
+                    queue.emplace(std::move(mutoString), executedCoverageOutput, executedCoverage, 1);
+                }
+            }
+
 
             switch (POWER_SCHEDULE)
             {
@@ -1177,7 +1187,7 @@ struct fuzzer_greybox : public fuzzer
                 selected.e = 1.0 / (res.execution_time.count() * selected.input.size() * selected.nm / selected.nc);
                 break;
             case POWER_SCHEDULE_T::boosted:
-                selected.e = 1.0 / std::pow(hashmap.at(selected.h), 5);
+                selected.e = 1.0 / std::pow(hashmap.at(selected.h), 5); //BUG, not existing hash possible if crashing input
                 break;
             default:
                 UNREACHABLE;
