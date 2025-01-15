@@ -715,10 +715,10 @@ struct fuzzer {
           //  std::cerr << "Stats saved." << std::endl;
     }
 
-    bool dealWithResult(const std::string_view& input, ExecutionResult result, ExecutionInput& executionInput, bool fromMin)
+    DetectedError* dealWithResult(const std::string_view& input, ExecutionResult result, ExecutionInput& executionInput, bool fromMin)
     {
         if (!keepRunning)
-            return false;
+            return nullptr;
 
         CrashReport report;
         size_t errorCount;
@@ -726,7 +726,7 @@ struct fuzzer {
             auto err = detectError(result);
 
             if (err == nullptr)
-                return false; //OK, no error
+                return nullptr; //OK, no error
 
             {
                 std::unique_lock lock(m);
@@ -736,7 +736,7 @@ struct fuzzer {
                     if (*err == *uniqueResults[i])//Error already logged
                     {
                         //std::cerr << "This error was already found, nothing new" << std::endl;
-                        return true;
+                        return uniqueResults[i].get();
                     }
 
                 }
@@ -775,7 +775,7 @@ struct fuzzer {
 
 
         saveReport(report, std::to_string(errorCount) + ".json", RESULT_FUZZ);
-        return true;
+        return report.detectedError;
     }
 
     virtual void fuzz() = 0;
@@ -954,7 +954,7 @@ struct fuzzer_greybox : public fuzzer
     {
         out << '{';
         exportStatisticsCommon(out);
-        out << "\",nb_queued_seed\":" << queue.size() << ",";
+        out << ",\"nb_queued_seed\":" << queue.size() << ",";
         out << "\"coverage\":" << bestCoverage*100;
         out << '}';
     }
@@ -1094,11 +1094,18 @@ struct fuzzer_greybox : public fuzzer
 
                 auto res = execute_with_timeout(*executionInput);
                 
-                bool error = dealWithResult(input, std::move(res), *executionInput, false);
+                auto error = dealWithResult(input, std::move(res), *executionInput, false);
 
                 if (error)
                 {
-                    queue.emplace(std::move(input), "", 0, 1, 2, 2);
+                    // Use bug info as a hash
+                    std::stringstream ss;
+                    error->bugInfo(ss);
+                    auto it = hashmap.emplace(ss.str(), 0);
+                    it.first->second++;;
+                    const auto& executedCoverageOutput = it.first->first;
+
+                    queue.emplace(std::move(input), executedCoverageOutput, 0, 1, 2, 2);
                 }
                 else
                 {
@@ -1147,14 +1154,21 @@ struct fuzzer_greybox : public fuzzer
 
             auto res = execute_with_timeout(*executionInput);
             
-            auto isCrash = dealWithResult(mutoString, res, *executionInput, false);
+            auto error = dealWithResult(mutoString, res, *executionInput, false);
 
-            if (isCrash)
+            if (error)
             {
+                // Use bug info as a hash
+                std::stringstream ss;
+                error->bugInfo(ss);
+                auto it = hashmap.emplace(ss.str(), 0);
+                it.first->second++;;
+                const auto& executedCoverageOutput = it.first->first;
+
                 selected.nc++;
 
                 //Add new interesting seed (crashing)
-                queue.emplace(std::move(mutoString), "", 0, 1, 2, 2);
+                queue.emplace(std::move(mutoString), executedCoverageOutput, 1, 1, 2, 2);
             }
             else
             {
@@ -1187,7 +1201,7 @@ struct fuzzer_greybox : public fuzzer
                 selected.e = 1.0 / (res.execution_time.count() * selected.input.size() * selected.nm / selected.nc);
                 break;
             case POWER_SCHEDULE_T::boosted:
-                selected.e = 1.0 / std::pow(hashmap.at(selected.h), 5); //BUG, not existing hash possible if crashing input
+                selected.e = 1.0 / std::pow(hashmap.at(selected.h), 5);
                 break;
             default:
                 UNREACHABLE;
