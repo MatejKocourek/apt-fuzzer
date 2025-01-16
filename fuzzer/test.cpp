@@ -282,3 +282,53 @@ TEST_F(FuzzerFalse, fuzzer_fuzz) {
 	}
 }
 
+TEST(Mutators, mutateBlocksDelete) {
+	std::string tmp = "test";
+	mutators::deleteBlock(tmp);
+	EXPECT_LT(tmp.size(), 4);
+}
+
+TEST(Mutators, mutateBlocksInsert) {
+	std::string tmp = "test";
+	mutators::insertBlock(tmp);
+	EXPECT_GT(tmp.size(), 4);
+}
+
+TEST(Mutators, mutateBlocksDigit) {
+	std::string tmp = "test";
+	mutators::insertDigit(tmp);
+	EXPECT_EQ(tmp.size(), 5);
+}
+
+TEST(Mutators, mutateConcat) {
+	std::string tmp1 = "test";
+	std::string tmp2 = "ahoj";
+	mutators::concat(tmp1, tmp2);
+	EXPECT_EQ(tmp1, "testahoj");
+}
+
+TEST(Mutators, flipBit) {
+	std::string tmp = "test";
+	mutators::flipBitASCII(tmp);
+	EXPECT_EQ(tmp.size(), 4);
+}
+
+TEST(Mutators, add) {
+	std::string tmp = "test";
+	mutators::addASCII(tmp);
+	EXPECT_EQ(tmp.size(), 4);
+}
+
+class Greybox : public ::testing::Test {
+protected:
+	std::optional<fuzzer_greybox> fuzz;
+
+	void SetUp() override {
+		fuzz.emplace("/bin/false", "/tmp/fuzzer/", true, "stdin", std::chrono::seconds(1), 1, fuzzer_greybox::POWER_SCHEDULE_T::simple, "coverage.lcov");
+	}
+
+	void TearDown() override {
+		fuzz.reset();
+	}
+};
+
