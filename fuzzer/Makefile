@@ -5,6 +5,7 @@ CC = gcc
 
 PROJECT_DIR ?= $(shell dirname $(PWD))
 POWER_SCHEDULE ?= simple
+INPUT_SEEDS = $(PROJECT_DIR)/seeds/
 
 BUILD_DIR = $(PROJECT_DIR)/fuzzer/build
 BUILD_DIR_TEST = $(PROJECT_DIR)/fuzzer/build/test

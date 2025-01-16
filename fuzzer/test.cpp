@@ -214,35 +214,6 @@ TEST(Oracle, detectErrorAsan) {
 	EXPECT_EQ(error.line, "30");
 }
 
-TEST(Results, exports) {
-	fuzzer_blackbox::AddressSanitizerError err("heap", "main.c", "30");
-
-	fuzzer_blackbox::CrashReport report;
-	report.input = "test";
-	report.detectedError = &err;
-	report.execution_time = std::chrono::duration<double, std::milli>(1.25);
-	report.unminimized_size = 42;
-	report.nb_steps = 123;
-	report.minimization_time = std::chrono::duration<double, std::milli>(12.75);
-
-	std::stringstream ss;
-	fuzzer_blackbox::exportReport(report, ss);
-
-	EXPECT_EQ(ss.str(), "{\"input\":\"test\",\"oracle\":\"asan\",\"bug_info\":{\"file\":\"main.c\",\"line\":30,\"kind\":\"heap\"},\"execution_time\":1.25,\"minimization\":{\"unminimized_size\":42,\"nb_steps\":123,\"execution_time\":12.75}}");
-
-
-	fuzzer_blackbox::saveReport(report, "export.json", "/tmp/fuzzer/");
-
-	std::ifstream createdFile("/tmp/fuzzer/crashes/export.json");
-	EXPECT_TRUE(createdFile.good());
-
-	std::string read;
-	createdFile >> read;
-
-	EXPECT_EQ(read, "{\"input\":\"test\",\"oracle\":\"asan\",\"bug_info\":{\"file\":\"main.c\",\"line\":30,\"kind\":\"heap\"},\"execution_time\":1.25,\"minimization\":{\"unminimized_size\":42,\"nb_steps\":123,\"execution_time\":12.75}}");
-	EXPECT_TRUE(createdFile.eof());
-}
-
 class FuzzerFalse : public ::testing::Test {
 protected:
 	std::optional<fuzzer_blackbox> fuzz;
@@ -255,6 +226,36 @@ protected:
 		fuzz.reset();
 	}
 };
+
+TEST_F(FuzzerFalse, exports) {
+	fuzzer_blackbox::AddressSanitizerError err("heap", "main.c", "30");
+
+	fuzzer_blackbox::CrashReport report;
+	report.input = "test";
+	report.detectedError = &err;
+	report.execution_time = std::chrono::duration<double, std::milli>(1.25);
+	report.unminimized_size = 42;
+	report.nb_steps = 123;
+	report.minimization_time = std::chrono::duration<double, std::milli>(12.75);
+
+	std::stringstream ss;
+	fuzz->exportReport(report, ss);
+
+	EXPECT_EQ(ss.str(), "{\"input\":\"test\",\"oracle\":\"asan\",\"bug_info\":{\"file\":\"main.c\",\"line\":30,\"kind\":\"heap\"},\"execution_time\":1.25,\"minimization\":{\"unminimized_size\":42,\"nb_steps\":123,\"execution_time\":12.75}}");
+
+
+	fuzz->saveReport(report, "export.json", "/tmp/fuzzer/");
+
+	std::ifstream createdFile("/tmp/fuzzer/crashes/export.json");
+	EXPECT_TRUE(createdFile.good());
+
+	std::string read;
+	createdFile >> read;
+
+	EXPECT_EQ(read, "{\"input\":\"test\",\"oracle\":\"asan\",\"bug_info\":{\"file\":\"main.c\",\"line\":30,\"kind\":\"heap\"},\"execution_time\":1.25,\"minimization\":{\"unminimized_size\":42,\"nb_steps\":123,\"execution_time\":12.75}}");
+	EXPECT_TRUE(createdFile.eof());
+}
+
 
 TEST_F(FuzzerFalse, fuzzer_fuzz) {
 	try
@@ -280,3 +281,4 @@ TEST_F(FuzzerFalse, fuzzer_fuzz) {
 		EXPECT_NO_THROW(throw e);
 	}
 }
+
