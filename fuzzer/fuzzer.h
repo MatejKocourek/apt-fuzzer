@@ -1110,7 +1110,7 @@ struct fuzzer_greybox : public fuzzer
     std::unordered_map<std::string, size_t> hashmap;
 
 
-    static seed weightedRandomChoice(std::multiset<seed>& options, float percent) {
+    static seed weightedRandomChoice(std::multiset<seed>& options, float percent, bool extract = false) {
         // Calculate the total weight
 
         double totalWeight = 0;
@@ -1147,7 +1147,10 @@ struct fuzzer_greybox : public fuzzer
                 cumulativeWeight += coefficientWorse;// cumulativeWeight += it->e * coefficientWorse; // Worse score
 
             if (randomValue <= cumulativeWeight) {
-                return std::move(options.extract(it).value());
+                if(extract)
+                    return std::move(options.extract(it).value());
+                else
+                    return *it;
                 //return option;
             }
             i++;
@@ -1279,7 +1282,7 @@ struct fuzzer_greybox : public fuzzer
             }
             else
             {
-                selected.emplace(weightedRandomChoice(queue, coefficient));
+                selected.emplace(weightedRandomChoice(queue, coefficient, true));
                 selected->nm++;
 
                 mutant = mutators::randomNumberOfRandomMutants(selected->input, weightedRandomChoice(queue, coefficient).input);
