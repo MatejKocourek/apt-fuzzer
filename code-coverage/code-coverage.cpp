@@ -48,7 +48,7 @@ int main(int argc, char* argv[]) {
 
 		for (const auto& i : fileInstruments)
 		{
-			std::ofstream outFile(STR(i.fileId << "_instrumented.c"));
+			std::ofstream outFile(STR(i.fileId << "_instrumented_main.c"));
 
 			if (i.thisIsMainFile)
 				instrumentHeaderMain(outFile, fileInstruments);
