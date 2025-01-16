@@ -58,8 +58,6 @@ namespace generators {
 
             for (std::size_t i = 0; i < size; ++i) {
                 char tmp = dist(gen);
-                while (tmp == '\\' || tmp == '"') // Trick to not having to escape in JSON
-                    tmp = dist(gen);
 
                 randomString += tmp; // Generate a random character
             }
@@ -94,7 +92,7 @@ namespace generators {
         switch (whichInput(gen))
         {
         case 0:
-            return generators::generateRandomString(dist(gen), 32, 126);
+            return generators::generateRandomString(dist(gen), 33, 126);
         case 1:
             return generators::generateRandomNum(1, 1000000);
         default:
@@ -103,7 +101,7 @@ namespace generators {
     }
 }
 
-void escape(std::ostream& out, char c)
+std::ostream& escape(std::ostream& out, char c)
 {
     if (c < 32)
         return;//hack
@@ -132,14 +130,16 @@ void escape(std::ostream& out, char c)
         out << c;
         break;
     }
+    return out;
 }
 
-void escape(std::ostream& out, std::string_view& str)
+std::ostream& escape(std::ostream& out, const std::string_view& str)
 {
     for (const auto& c : str)
     {
         escape(out, c);
     }
+    return out;
 }
 
 namespace mutators {
@@ -736,8 +736,8 @@ struct fuzzer {
     static void exportReportCommon(const CrashReport& report, std::ostream& output)
     {
         output <<
-            
-            "\"input\":"            "\"" << report.input << "\","
+
+            "\"input\":"            "\""  ; escape(output, report.input) << "\","
             "\"oracle\":"           "\"" << report.detectedError->errorName() << "\","
             "\"bug_info\":";                report.detectedError->bugInfo(output) << ","
             "\"execution_time\":" << report.execution_time.count() <<
@@ -788,7 +788,7 @@ struct fuzzer {
         output <<
             //"{"
                 "\"fuzzer_name\":"              "\"kocoumat\","
-                "\"fuzzed_program\":"           "\"" << FUZZED_PROG.string() << "\","
+                "\"fuzzed_program\":"           "\""; escape(output, FUZZED_PROG.string()) << "\","
                 "\"nb_runs\":" << statisticsExecution.count() << ","
                 "\"nb_failed_runs\":" << nb_failed_runs.load(std::memory_order_relaxed) << ","
                 "\"nb_hanged_runs\":" << nb_hanged_runs.load(std::memory_order_relaxed) << ","
@@ -1251,7 +1251,7 @@ struct fuzzer_greybox : public fuzzer
                     executedCoverageOutput = &it.first->first;
                 }
 
-                queue.emplace(std::move(input), *executedCoverageOutput, res.execution_time.count(), powerSchedule(res.execution_time.count(), input.size(), 1, 1, *executedCoverageOutput));
+                queue.emplace(std::move(input), *executedCoverageOutput, res.execution_time.count(), powerSchedule(res.execution_time.count(), input.size(), error?2:1, error?2:1, *executedCoverageOutput));
             }
         }
         std::cerr << "Loaded " << queue.size() << " seeds." << std::endl;
@@ -1274,8 +1274,9 @@ struct fuzzer_greybox : public fuzzer
             std::string mutant;
 
             std::optional<seed> selected;
-            bool makeRandomSeed = generators::randomBool();
 
+            // Make this a hybrid between greybox and blackbox fuzzing. Sometimes, instead of a mutating existing seed, test random input - if working, add it as seed.
+            bool makeRandomSeed = generators::randomBool();
             if (makeRandomSeed)
             {
                 mutant = generators::generateRandomInput();
