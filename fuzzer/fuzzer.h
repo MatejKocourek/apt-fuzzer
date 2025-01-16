@@ -104,7 +104,7 @@ namespace generators {
 std::ostream& escape(std::ostream& out, char c)
 {
     if (c < 32)
-        return;//hack
+        return out;//hack
     switch (c)
     {
     case '\u007F':
