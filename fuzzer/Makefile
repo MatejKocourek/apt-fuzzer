@@ -32,7 +32,7 @@ greybox: build
 	@echo "Build dir is $(BUILD_DIR)"
 	@echo "Running code coverage tool on files in $(FUZZED_PROG)/*.c"
 	@cd $(FUZZED_PROG) && $(BUILD_DIR)/../../code-coverage/build/code-coverage *.c
-	@cd $(FUZZED_PROG) && $(CC) *_instrumented.c -g -fsanitize=address -o instr_prog
+	@cd $(FUZZED_PROG) && $(CC) *_instrumented.c -g -fsanitize=address -o instr_prog -lm
 	@echo "Running greybox fuzzer on $(FUZZED_PROG) and placing results to $(RESULT_FUZZ)"
 	@cd $(FUZZED_PROG) && $(BUILD_DIR)/fuzzer instr_prog $(RESULT_FUZZ) $(MINIMIZE) $(INPUT) $(TIMEOUT) $(NB_KNOWN_BUGS) $(POWER_SCHEDULE) coverage.lcov $(INPUT_SEEDS)
 

@@ -9,6 +9,7 @@
 #include <vector>
 #include <variant>
 #include <sstream>
+#include <optional>
 
 extern "C" {
 	TSLanguage* tree_sitter_c();
@@ -407,9 +408,11 @@ public:
 		switch (type)
 		{
 		default:
-			std::cerr << "Encounter untested type, treating it as one-line expression/statement: " << node.getType() << std::endl;
-			[[fallthrough]];
+			std::cerr << "Encounter untested type, not instrumenting it: " << node.getType() << std::endl;
+			return;
 		case ts_symbol_identifiers::sym_return_statement:
+		case ts_symbol_identifiers::sym_break_statement:
+		case ts_symbol_identifiers::sym_continue_statement:
 		case ts_symbol_identifiers::sym_if_statement:
 		case ts_symbol_identifiers::sym_declaration:
 		case ts_symbol_identifiers::sym_expression:
@@ -424,6 +427,8 @@ public:
 		case ts_symbol_identifiers::anon_sym_LBRACE:
 		case ts_symbol_identifiers::anon_sym_RBRACE:
 		case ts_symbol_identifiers::sym_comment:
+		case ts_symbol_identifiers::sym_switch_statement:
+		case ts_symbol_identifiers::sym_case_statement:
 			break;
 		}
 
@@ -462,7 +467,22 @@ public:
 				instrumentRecursive(child);
 			break;
 		}
+		case ts_symbol_identifiers::sym_switch_statement:
+		{
+			instrumentRecursive(node.getChild(2));
+			break;
+		}
+		case ts_symbol_identifiers::sym_case_statement:
+		{
+			uint32_t child = 0;
+			while (node.getChild(child++).getSymbol() != ts_symbol_identifiers::anon_sym_COLON);
 
+			for (size_t i = child; i < node.getNumChildren(); i++)
+			{
+				instrumentRecursive(node.getChild(i));
+			}
+			break;
+		}
 		//default:
 		//{
 		//	for (const auto& child : ts::Children(node))
@@ -506,6 +526,22 @@ public:
 
 	//}
 
+	std::optional<ts::Node> findChild(const ts::Node& node, ts::Symbol sym)
+	{
+		for (const auto& child : ts::Children(node))
+		{
+			if (child.getSymbol() == sym)
+				return child;
+			else
+			{
+				auto res = findChild(child, sym);
+				if (res.has_value())
+					return res;
+			}
+		}
+		return {}; // no value
+	}
+
 	void parseSource()
 	{
 		// Create a language and parser.
@@ -521,7 +557,11 @@ public:
 		{
 			if (topLevelExpr.getSymbol() == ts_symbol_identifiers::sym_function_definition)
 			{
-				auto tmp = topLevelExpr.getNamedChild(1).getNamedChild(0).getByteRange();
+				auto found = findChild(topLevelExpr, ts_symbol_identifiers::sym_identifier);
+				if (!found.has_value())
+					continue;
+
+				auto tmp = found->getByteRange();
 				std::string_view functionName(&sourcecode[tmp.start], tmp.end - tmp.start);
 				if (functionName == "main") [[unlikely]]
 					{

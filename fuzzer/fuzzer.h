@@ -1230,6 +1230,8 @@ struct fuzzer_greybox : public fuzzer
                     bestCoverage = executedCoverage;
                     selected.nc++;
 
+                    if (executedCoverage > bestCoverage)
+                        std::cerr << "Just improved coverage! nb_runs=" <<statisticsExecution.count() << std::endl;
                     //Add new interesting seed (higher coverage)
                     queue.emplace(std::move(mutant), executedCoverageOutput, res.execution_time.count(), powerSchedule(res.execution_time.count(), mutant.size(), 1, 1, executedCoverageOutput));
                     //queue.emplace(std::move(mutant), executedCoverageOutput, 1);
