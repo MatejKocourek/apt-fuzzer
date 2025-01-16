@@ -36,7 +36,7 @@ protected:
 	std::optional<fuzzer_blackbox> fuzz;
 
 	void SetUp() override {
-		fuzz.emplace("/bin/cat", "/tmp/kocoumat-fuzzer/", true, "stdin", std::chrono::seconds(1), 1);
+		fuzz.emplace("/bin/cat", "/tmp/kocoumat-fuzzer/", true, "stdin", std::chrono::seconds(60), 1);
 	}
 
 	void TearDown() override {
@@ -49,7 +49,7 @@ protected:
 	std::optional<fuzzer_blackbox> fuzz;
 
 	void SetUp() override {
-		fuzz.emplace("/bin/echo", "/tmp/kocoumat-fuzzer/", true, "/bin/echo", std::chrono::seconds(1), 1);
+		fuzz.emplace("/bin/echo", "/tmp/kocoumat-fuzzer/", true, "/bin/echo", std::chrono::seconds(60), 1);
 	}
 
 	void TearDown() override {
@@ -62,7 +62,7 @@ protected:
 	std::optional<fuzzer_blackbox> fuzz;
 
 	void SetUp() override {
-		fuzz.emplace("/bin/sleep", "/tmp/kocoumat-fuzzer/", true, "/bin/sleep", std::chrono::seconds(1), 1);
+		fuzz.emplace("/bin/sleep", "/tmp/kocoumat-fuzzer/", true, "/bin/sleep", std::chrono::seconds(60), 1);
 	}
 
 	void TearDown() override {
@@ -219,7 +219,7 @@ protected:
 	std::optional<fuzzer_blackbox> fuzz;
 
 	void SetUp() override {
-		fuzz.emplace("/bin/false", "/tmp/fuzzer/", true, "stdin", std::chrono::seconds(1), 1);
+		fuzz.emplace("/bin/false", "/tmp/fuzzer/", true, "stdin", std::chrono::seconds(60), 1);
 	}
 
 	void TearDown() override {
@@ -355,7 +355,7 @@ protected:
 	std::optional<fuzzer_greybox> fuzz;
 
 	void SetUp() override {
-		fuzz.emplace("/bin/false", "/tmp/fuzzer/", true, "stdin", std::chrono::seconds(1), 1, fuzzer_greybox::POWER_SCHEDULE_T::simple, "coverage.lcov");
+		fuzz.emplace("/bin/false", "/tmp/fuzzer/", true, "stdin", std::chrono::seconds(60), 1, fuzzer_greybox::POWER_SCHEDULE_T::simple, "coverage.lcov");
 	}
 
 	void TearDown() override {

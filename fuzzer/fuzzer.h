@@ -305,6 +305,8 @@ struct fuzzer {
 
         const std::filesystem::path executablePath;
         const std::chrono::milliseconds timeout;
+
+        virtual ~ExecutionInput() = default;
     };
 
     struct FileInput final : public ExecutionInput
@@ -325,6 +327,8 @@ struct fuzzer {
             std::ofstream fuzzInput(path);
             fuzzInput << input;
         }
+
+        virtual ~FileInput() = default;
     private:
         const std::string path;
     };
@@ -350,6 +354,9 @@ struct fuzzer {
         {
             cinInput = std::move(input);
         }
+
+        virtual ~CinInput() = default;
+
     private:
         std::string_view cinInput;
     };
@@ -422,6 +429,8 @@ struct fuzzer {
         virtual std::ostream& bugInfo(std::ostream& os) const = 0;
 
         virtual bool operator == (const DetectedError& Other) const = 0;
+
+        virtual ~DetectedError() = default;
     };
 
     struct ReturnCodeError : public DetectedError
@@ -456,7 +465,7 @@ struct fuzzer {
             return res;
         }
 
-        virtual bool isErrorEncountered(const ExecutionResult& executionResult) const
+        virtual bool isErrorEncountered(const ExecutionResult& executionResult) const override
         {
             auto tmp = tryDetectError(executionResult);
             if (tmp.has_value() && ((*tmp) == (*this)))
@@ -465,12 +474,12 @@ struct fuzzer {
             return false;
         }
 
-        virtual const char* errorName() const
+        virtual const char* errorName() const override
         {
             return "return_code";
         }
 
-        virtual const char* folder() const
+        virtual const char* folder() const override
         {
             return "crashes";
         }
@@ -480,6 +489,8 @@ struct fuzzer {
             os << returnCode;
             return os;
         }
+
+        virtual ~ReturnCodeError() = default;
 
         const int returnCode;
     };
@@ -541,6 +552,8 @@ struct fuzzer {
             os << timeout.count();
             return os;
         }
+
+        virtual ~TimeoutError() = default;
 
         std::chrono::duration<double, std::milli> timeout;
     };
@@ -611,7 +624,7 @@ struct fuzzer {
             return res;
         }
 
-        virtual bool isErrorEncountered(const ExecutionResult& executionResult) const
+        virtual bool isErrorEncountered(const ExecutionResult& executionResult) const override
         {
             auto tmp = tryDetectError(executionResult);
             if (tmp.has_value() && ((*tmp) == (*this)))
@@ -634,6 +647,8 @@ struct fuzzer {
         const std::string asanType;
         const std::string file;
         const std::string line;
+
+        virtual ~AddressSanitizerError() = default;
     };
 
     static std::unique_ptr<DetectedError> detectError(const ExecutionResult& result)
@@ -942,11 +957,17 @@ public:
             saveStatistics();
             });
 
-        //std::jthread worker([&]() {
-        //    std::this_thread::sleep_for(TIMEOUT); // Wait for the set time
-        //    keepRunning = false;
-        //    std::cerr << "Timeout reached, ending." << std::endl;
-        //    });
+        std::jthread worker([&]() {
+            const auto start = std::chrono::high_resolution_clock::now();
+            const auto timeout = TIMEOUT - std::chrono::seconds(1);
+            while (std::chrono::duration_cast<std::chrono::seconds>(std::chrono::high_resolution_clock::now() - start) < timeout || !keepRunning)
+            {
+                std::this_thread::sleep_for(std::chrono::seconds(1)); // Wait for the set time
+            }
+            
+            keepRunning = false;
+            std::cerr << "Timeout reached, ending." << std::endl;
+            });
 
         {
             std::vector<std::jthread> threads;
@@ -1224,7 +1245,7 @@ struct fuzzer_greybox : public fuzzer
         return static_cast<double>(covered) / total;
     }
 
-    void fuzz()
+    virtual void fuzz() override
     {
         // Run for initial seeds without mutating
         std::cerr << "Executing initial seeds..." << std::endl;
