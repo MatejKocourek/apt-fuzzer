@@ -106,29 +106,53 @@ namespace mutants {
 
         input.insert(blockStart, generators::generateRandomString(blockLen,33,126));
     }
+    void insertDigit(std::string& input)
+    {
+        std::uniform_int_distribution<size_t> distChar(0, 9);
+
+        std::uniform_int_distribution<size_t> distStart(0, input.size());
+        size_t blockStart = distStart(gen);
+
+        input.insert(input.begin() + blockStart, (char)(distChar(gen) + '0'));
+    }
+    void duplicate(std::string& input)
+    {
+        input.insert(input.size(), input);
+    }
+
+    template<uint8_t maxBit>
     void flipBit(std::string& input)
     {
         std::uniform_int_distribution<size_t> distPos(0, input.size() - 1);
-        std::uniform_int_distribution<int> distBit(0, 7);
+        std::uniform_int_distribution<int> distBit(0, maxBit-1);
 
         input[distPos(gen)] ^= (1 << distBit(gen));
     }
-    void add(std::string& input)
+    void flipBitBIN(std::string& input)
+    {
+        return flipBit<8>(input);
+    }
+    void flipBitASCII(std::string& input)
+    {
+        return flipBit<7>(input);
+    }
+    void addASCII(std::string& input)
     {
         std::uniform_int_distribution<size_t> distPos(0, input.size() - 1);
         std::exponential_distribution<double> distVal(1);
 
         std::uniform_int_distribution<int> negative(0, 1);
 
-        int val = 1 +round(distVal(gen));
+        int val = 1 + round(distVal(gen));
         val *= 2 * negative(gen) - 1;
 
         input[distPos(gen)] += val;
+        input[distPos(gen)] &= 0b01111111;
     }
 
     void randomMutant(std::string& input)
     {
-        std::uniform_int_distribution<int> mutants(0, 3);
+        std::uniform_int_distribution<int> mutants(0, 5);
         switch (mutants(gen))
         {
         case 0:
@@ -136,9 +160,13 @@ namespace mutants {
         case 1:
             return insertBlock(input);
         case 2:
-            return flipBit(input);
+            return flipBitASCII(input);
         case 3:
-            return add(input);
+            return addASCII(input);
+        case 4:
+            return insertDigit(input);
+        case 5:
+            return duplicate(input);
 
         default:
             UNREACHABLE;
@@ -971,7 +999,8 @@ struct fuzzer_greybox : public fuzzer
         out << '{';
         exportStatisticsCommon(out);
         out << ",\"nb_queued_seed\":" << queue.size() << ",";
-        out << "\"coverage\":" << bestCoverage*100;
+        out << "\"coverage\":" << bestCoverage * 100 << ",";
+        out << "\"nb_unique_hash\":" << hashmap.size();
         out << '}';
     }
 
@@ -1015,8 +1044,6 @@ struct fuzzer_greybox : public fuzzer
                 totalWeight += coefficientWorse;// totalWeight += it->e * coefficientWorse; // Worse score
             i++;
         }
-
-
 
         
         std::uniform_real_distribution<> dis(0.0, totalWeight); // Range [0, totalWeight)
@@ -1183,7 +1210,7 @@ struct fuzzer_greybox : public fuzzer
                 it.first->second++;;
                 const auto& executedCoverageOutput = it.first->first;
 
-                selected.nc++;
+                //selected.nc++;
 
                 //Add new interesting seed (crashing)
                 queue.emplace(std::move(mutant), executedCoverageOutput, res.execution_time.count(), powerSchedule(res.execution_time.count(), mutant.size(), 2, 2, executedCoverageOutput), 2, 2);
@@ -1228,7 +1255,7 @@ struct fuzzer_greybox : public fuzzer
         std::cerr << "Populating folder with my seeds" << std::endl;
         std::filesystem::create_directories(INPUT_SEEDS);
 
-        for (size_t i = 0; i < 1024; i++)
+        for (size_t i = 0; i < 100; i++)
         {
             std::filesystem::path path = INPUT_SEEDS / (std::to_string(i) + ".txt");
             std::ofstream outFile(path);
