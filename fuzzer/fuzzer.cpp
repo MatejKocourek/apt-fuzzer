@@ -15,10 +15,6 @@ void signalHandler(int signal) {
         std::cerr << "Caught SIGTERM. Exiting gracefully...\n";
         myFuzzer->requestStop();
     }
-    else if (signal == SIGKILL) {
-        std::cerr << "Caught SIGKILL. Exiting gracefully...\n";
-        myFuzzer->requestStop();
-    }
 
     //if (!keepRunning)
     //{
@@ -40,11 +36,6 @@ void setupSignalHandlers() {
 
     if (sigaction(SIGTERM, &sa, nullptr) == -1) {
         perror("Error setting up SIGTERM handler");
-        std::exit(EXIT_FAILURE);
-    }
-
-    if (sigaction(SIGKILL, &sa, nullptr) == -1) {
-        perror("Error setting up SIGKILL handler");
         std::exit(EXIT_FAILURE);
     }
 }
