@@ -43,7 +43,7 @@ task2-3-test:
       - .gitlab-ci.yml
   script:
     - apt-get update -y && apt install -y make cmake g++ lcov libboost-all-dev libgtest-dev curl llvm-14
-    - curl -1sLf 'https://dl.cloudsmith.io/public/mull-project/mull-stable/setup.deb.sh' | sudo -E bash
+    - curl -1sLf 'https://dl.cloudsmith.io/public/mull-project/mull-stable/setup.deb.sh' | bash
     - apt-get update -y && apt install -y mull-14
     - cd fuzzer
     - make test
