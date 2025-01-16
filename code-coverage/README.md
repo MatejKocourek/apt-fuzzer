@@ -9,6 +9,8 @@ This ensures that required libraries are available for the compilation process
 - The array to hold instrumentations is compact - its size is only the amount of lines instrumented, not total lines in a file.
 - Line coverage output also contains lines that were instrumented, but never hit (with hit count 0).
 - `for`, `if`, `while` with a one-liner body support is implemented, with unlimited number of recursive children (e.g.: `if(a) if(b) if(c) print("test");`).
+- switch statement
+- const
 
 ## Testing
 

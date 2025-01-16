@@ -40,7 +40,7 @@ int main(int argc, char* argv[]) {
 			}
 			catch (const std::exception& e)
 			{
-				std::cerr << "Error parsing file " << argv[fileId] << ": " << e.what();
+				std::cerr << "Error parsing file " << argv[fileId] << ": " << e.what() << std::endl;
 			}
 		}
 
