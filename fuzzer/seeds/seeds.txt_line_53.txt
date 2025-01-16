@@ -1,0 +1,1 @@
+string_with_nullbyte\0here

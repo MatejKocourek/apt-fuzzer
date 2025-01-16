@@ -75,10 +75,36 @@ namespace generators {
 
             return std::to_string(dist(gen));
     }
+    bool randomBool()
+    {
+        std::uniform_int_distribution<int> res(0, 1);
+        return (bool)res(gen);
+    }
+
+
+    static std::string generateRandomInput()
+    {
+        std::uniform_int_distribution<int> whichInput(0, 1);
+
+        const size_t minSize = 1;
+        const size_t maxSize = 1024;
+
+        std::uniform_int_distribution<size_t> dist(minSize, maxSize);
+
+        switch (whichInput(gen))
+        {
+        case 0:
+            return generators::generateRandomString(dist(gen), 33, 126);
+        case 1:
+            return generators::generateRandomNum(1, 1000000);
+        default:
+            UNREACHABLE;
+        }
+    }
 }
 
 
-namespace mutants {
+namespace mutators {
     void deleteBlock(std::string& str)
     {
         if (str.size() <= 1) [[unlikely]]
@@ -115,9 +141,33 @@ namespace mutants {
 
         input.insert(input.begin() + blockStart, (char)(distChar(gen) + '0'));
     }
-    void duplicate(std::string& input)
+    void concat(std::string& input, const std::string& input2)
     {
-        input.insert(input.size(), input);
+        input.reserve(input.size() + input2.size());
+        input += input2;
+    }
+    /// <summary>
+    /// If seed is a number, slightly change it
+    /// </summary>
+    void changeNum(std::string& input)
+    {
+        for (const auto& c : input)
+        {
+            if (!isdigit(c))
+                return;
+        }
+        auto num = std::stoll(input);
+
+        std::exponential_distribution<double> distLen(0.5);
+
+        std::uniform_int_distribution<int> negative(0, 1);
+
+        int val = 1 + round(distLen(gen));
+        val *= 2 * negative(gen) - 1;
+
+        num += val;
+
+        input = std::to_string(num);
     }
 
     template<uint8_t maxBit>
@@ -150,34 +200,38 @@ namespace mutants {
         input[distPos(gen)] &= 0b01111111;
     }
 
-    void randomMutant(std::string& input)
+    void randomMutant(std::string& input1, const std::string& input2)
     {
         std::uniform_int_distribution<int> mutants(0, 5);
         switch (mutants(gen))
         {
         case 0:
-            return deleteBlock(input);
+            return deleteBlock(input1);
         case 1:
-            return insertBlock(input);
+            return insertBlock(input1);
         case 2:
-            return flipBitASCII(input);
+            return flipBitASCII(input1);
         case 3:
-            return addASCII(input);
+            return addASCII(input1);
         case 4:
-            return insertDigit(input);
+            return insertDigit(input1);
         case 5:
-            return duplicate(input);
+            return concat(input1, input2);
 
         default:
             UNREACHABLE;
         }
     }
-    void randomNumberOfRandomMutants(std::string& input)
+    std::string randomNumberOfRandomMutants(const std::string& input1, const std::string& input2)
     {
+        std::string res = input1;
+
         std::exponential_distribution<double> distVal(1);
 
         for (size_t i = 1 + round(distVal(gen)); i != 0; i--)
-            randomMutant(input);
+            randomMutant(res, input2);
+
+        return res;
     }
 }
 
@@ -643,11 +697,10 @@ struct fuzzer {
     };
 
 
-
-    static void exportReport(const CrashReport& report, std::ostream& output)
+    static void exportReportCommon(const CrashReport& report, std::ostream& output)
     {
         output <<
-            "{"
+            
             "\"input\":"            "\"" << report.input << "\","
             "\"oracle\":"           "\"" << report.detectedError->errorName() << "\","
             "\"bug_info\":";                report.detectedError->bugInfo(output) << ","
@@ -657,9 +710,10 @@ struct fuzzer {
             "\"nb_steps\":" << report.nb_steps << ","
             "\"execution_time\":" << report.minimization_time.count() << ""
             "}"
-            "}";
+            ;
     }
-    static void saveReport(const CrashReport& report, const std::string& name, const std::filesystem::path& resultFolder)
+    virtual void exportReport(const CrashReport& report, std::ostream& output) const = 0;
+    void saveReport(const CrashReport& report, const std::string& name, const std::filesystem::path& resultFolder)
     {
         std::filesystem::path resultFile;
 
@@ -875,26 +929,6 @@ public:
         keepRunning = false;
     }
 
-
-    static std::string generateRandomInput()
-    {
-        std::uniform_int_distribution<int> whichInput(0, 1);
-
-        const size_t minSize = 1;
-        const size_t maxSize = 1024;
-
-        std::uniform_int_distribution<size_t> dist(minSize, maxSize);
-
-        switch (whichInput(gen))
-        {
-        case 0:
-            return generators::generateRandomString(dist(gen), 33, 126);
-        case 1:
-            return generators::generateRandomNum(1, 1000000);
-        default:
-            UNREACHABLE;
-        }
-    }
 };
 
 struct fuzzer_blackbox : public fuzzer
@@ -908,7 +942,7 @@ struct fuzzer_blackbox : public fuzzer
     {
         while (keepRunning)
         {
-            auto input = generateRandomInput();
+            auto input = generators::generateRandomInput();
 
             executionInput->setInput(input);
 
@@ -923,6 +957,13 @@ struct fuzzer_blackbox : public fuzzer
     {
         out << '{';
         exportStatisticsCommon(out);
+        out << '}';
+    }
+
+    virtual void exportReport(const CrashReport& report, std::ostream& out) const override
+    {
+        out << '{';
+        exportReportCommon(report, out);
         out << '}';
     }
 };
@@ -1001,6 +1042,13 @@ struct fuzzer_greybox : public fuzzer
         out << ",\"nb_queued_seed\":" << queue.size() << ",";
         out << "\"coverage\":" << bestCoverage * 100 << ",";
         out << "\"nb_unique_hash\":" << hashmap.size();
+        out << '}';
+    }
+    virtual void exportReport(const CrashReport& report, std::ostream& out) const override
+    {
+        out << '{';
+        exportReportCommon(report, out);
+        out << ",\"coverage\":" << bestCoverage * 100;
         out << '}';
     }
 
@@ -1183,15 +1231,26 @@ struct fuzzer_greybox : public fuzzer
             default:
                 UNREACHABLE;
             }
-            auto selected = weightedRandomChoice(queue, coefficient);
+
+            std::string mutant;
+
+            std::optional<seed> selected;
+            bool makeRandomSeed = generators::randomBool();
+
+            if (makeRandomSeed)
+            {
+                mutant = generators::generateRandomInput();
+            }
+            else
+            {
+                selected.emplace(weightedRandomChoice(queue, coefficient));
+                selected->nm++;
+
+                mutant = mutators::randomNumberOfRandomMutants(selected->input, weightedRandomChoice(queue, coefficient).input);
+            }
 
             //std::cerr << "Selected: " << std::endl << selected.input << std::endl;
 
-            selected.nm++;
-
-            std::string mutant = selected.input;
-
-            mutants::randomNumberOfRandomMutants(mutant);
 
             //std::cerr << "Mutated to: " << std::endl << mutoString << std::endl;
 
@@ -1225,16 +1284,19 @@ struct fuzzer_greybox : public fuzzer
                 it.first->second++;;
                 const auto& executedCoverageOutput = it.first->first;
 
-                if ((executedCoverage > bestCoverage) || (executedCoverage > bestCoverage && executedCoverageOutput != selected.h))
+                if ((executedCoverage > bestCoverage) || (!makeRandomSeed && executedCoverage == bestCoverage && executedCoverageOutput != selected->h))
                 {
-                    bestCoverage = executedCoverage;
-                    selected.nc++;
+                    if (!makeRandomSeed)
+                        selected->nc++;
 
                     if (executedCoverage > bestCoverage)
-                        std::cerr << "Just improved coverage! nb_runs=" <<statisticsExecution.count() << std::endl;
+                    {
+                        bestCoverage = executedCoverage;
+                        std::cerr << "Just improved coverage! nb_runs=" << statisticsExecution.count() << std::endl;
+                    }
+
                     //Add new interesting seed (higher coverage)
                     queue.emplace(std::move(mutant), executedCoverageOutput, res.execution_time.count(), powerSchedule(res.execution_time.count(), mutant.size(), 1, 1, executedCoverageOutput));
-                    //queue.emplace(std::move(mutant), executedCoverageOutput, 1);
                 }
                 //else if (executedCoverage == bestCoverage && executedCoverageOutput != selected.h)
                 //{
@@ -1245,10 +1307,13 @@ struct fuzzer_greybox : public fuzzer
                 //}
             }
 
-            selected.e = powerSchedule(selected.T, selected.input.size(), selected.nm, selected.nc, selected.h);
+            if (!makeRandomSeed)
+            {
+                selected->e = powerSchedule(selected->T, selected->input.size(), selected->nm, selected->nc, selected->h);
 
-            // Return original seed back
-            queue.insert(std::move(selected));
+                // Return original seed back
+                queue.insert(std::move(*selected));
+            }           
         }
     }
 
@@ -1261,8 +1326,9 @@ struct fuzzer_greybox : public fuzzer
         {
             std::filesystem::path path = INPUT_SEEDS / (std::to_string(i) + ".txt");
             std::ofstream outFile(path);
-            outFile << generateRandomInput();
+            outFile << generators::generateRandomInput();
         }
+
     }
 
     fuzzer_greybox(std::filesystem::path FUZZED_PROG, std::filesystem::path RESULT_FUZZ, bool MINIMIZE, std::string_view INPUT, std::chrono::seconds TIMEOUT, size_t NB_KNOWN_BUGS, POWER_SCHEDULE_T POWER_SCHEDULE, std::filesystem::path COVERAGE_FILE) : fuzzer_greybox(std::move(FUZZED_PROG), std::move(RESULT_FUZZ), std::move(MINIMIZE), std::move(INPUT), std::move(TIMEOUT), std::move(NB_KNOWN_BUGS), std::move(POWER_SCHEDULE), std::move(COVERAGE_FILE), "MY_SEED")
