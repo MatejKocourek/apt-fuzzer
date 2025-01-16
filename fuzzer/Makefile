@@ -23,7 +23,7 @@ test:
 	@cmake -S . -B $(BUILD_DIR_TEST) -DCOVERAGE=ON
 	@cmake --build $(BUILD_DIR_TEST) --target coverage
 	@echo "Running mutation testing"
-	@clang++ $(BUILD_DIR)/test.cpp -g -std=c++20 -fpass-plugin=/usr/lib/mull-ir-frontend-14 -fexperimental-new-pass-manager -grecord-command-line -lgtest -lgtest_main -o $(BUILD_DIR)/fuzzer-mutated
+	@clang++-14 $(BUILD_DIR)/test.cpp -g -std=c++20 -fpass-plugin=/usr/lib/mull-ir-frontend-14 -fexperimental-new-pass-manager -grecord-command-line -lgtest -lgtest_main -o $(BUILD_DIR)/fuzzer-mutated
 	@mull-runner-14 $(BUILD_DIR)/fuzzer-mutated --mutation-score-threshold=50 --no-output
 
 # The 'run' target runs the code coverage tool on the C file(s) specified by the TARGET_COV environment variable
