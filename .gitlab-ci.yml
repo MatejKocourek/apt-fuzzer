@@ -33,7 +33,7 @@ task1-test:
     - make test
   coverage: "/lines......: (\\d+\\.\\d+%)/" #Look at those regexes for your specific code coverage tool,  https://docs.gitlab.com/ee/ci/testing/code_coverage.html#test-coverage-examples
 
-task2-test:
+task2-3-test:
   stage: test
   dependencies:
     - build-job
@@ -42,14 +42,16 @@ task2-test:
       - fuzzer/*
       - .gitlab-ci.yml
   script:
-    - apt-get update -y && apt install -y make cmake g++ lcov libboost-all-dev
+    - apt-get update -y && apt install -y make cmake g++ lcov libboost-all-dev libgtest-dev curl llvm-14
+    - curl -1sLf 'https://dl.cloudsmith.io/public/mull-project/mull-stable/setup.deb.sh' | sudo -E bash
+    - apt-get update -y && apt install -y mull-14
     - cd fuzzer
     - make test
-  coverage:  "/lines......: (\\d+\\.\\d+%)/"
+  coverage:  "/lines......: (\\d+\\.?\\d*%)/"
   artifacts:
     paths:
       - "fuzzer/coverage.txt" # contains just the coverage percentage as a number
-      - "code-coverage/mutation.txt" # contains the mutation score as a number
+      - "fuzzer/mutation.txt" # contains the mutation score as a number
 
 task1-benchmark:
   stage: test

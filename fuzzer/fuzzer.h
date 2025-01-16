@@ -960,13 +960,13 @@ public:
         std::jthread worker([&]() {
             const auto start = std::chrono::high_resolution_clock::now();
             const auto timeout = TIMEOUT - std::chrono::seconds(1);
-            while (std::chrono::duration_cast<std::chrono::seconds>(std::chrono::high_resolution_clock::now() - start) < timeout || !keepRunning)
+            while (std::chrono::duration_cast<std::chrono::seconds>(std::chrono::high_resolution_clock::now() - start) < timeout && keepRunning)
             {
                 std::this_thread::sleep_for(std::chrono::seconds(1)); // Wait for the set time
             }
             
             keepRunning = false;
-            std::cerr << "Timeout reached, ending." << std::endl;
+            std::cerr << "Timeout reached or everything found, ending." << std::endl;
             });
 
         {
