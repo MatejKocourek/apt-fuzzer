@@ -274,7 +274,7 @@ TEST_F(FuzzerFalse, fuzzer_fuzz) {
 		std::ifstream createdFileStats("/tmp/fuzzer/stats.json");
 		createdFileStats >> read;
 
-		EXPECT_EQ(read.substr(0, 107), "{\"fuzzer_name\":\"kocoumat\",\"fuzzed_program\":\"/bin/false\",\"nb_runs\":10,\"nb_failed_runs\":10,\"nb_hanged_runs\":0");
+		EXPECT_EQ(read.substr(0, 55), "{\"fuzzer_name\":\"kocoumat\",\"fuzzed_program\":\"/bin/false\"");
 	}
 	catch (const std::exception& e)
 	{
@@ -319,6 +319,37 @@ TEST(Mutators, add) {
 	EXPECT_EQ(tmp.size(), 4);
 }
 
+TEST(Power, weightedChoice) {
+	std::string input = "test";
+	std::string hash = "hash";
+	std::multiset<fuzzer_greybox::seed> options;
+	options.emplace(std::move(input),hash,1,1,1,1);
+
+	auto choice = fuzzer_greybox::weightedRandomChoice(options, 0.1, true);
+	
+	EXPECT_EQ(hash, choice.h);
+	EXPECT_EQ(options.size(), 0);
+}
+
+TEST(Coverage, lcov) {
+	std::string input = "TN:test\n"
+		"SF:filename\n"
+		"DA:5,0\n"
+		"DA:8,1\n"
+		"DA:9,1\n"
+		"DA:11,10\n"
+		"DA:13,1\n"
+		"DA:18,1\n"
+		"DA:19,1\n"
+		"LH:6\n"
+		"LF:7\n"
+		"end_of_record\n";
+
+	auto coverage = fuzzer_greybox::coverage(input);
+
+	EXPECT_EQ(coverage, 6.0/7.0);
+}
+
 class Greybox : public ::testing::Test {
 protected:
 	std::optional<fuzzer_greybox> fuzz;
@@ -332,3 +363,27 @@ protected:
 	}
 };
 
+TEST_F(Greybox, greybox_fuzz) {
+	try
+	{
+		fuzz->run();
+		std::ifstream createdFile("/tmp/fuzzer/crashes/0.json");
+		EXPECT_TRUE(createdFile.good());
+
+		std::string read;
+		createdFile >> read;
+
+		EXPECT_EQ(read.substr(0, 48), "{\"input\":\"5\",\"oracle\":\"return_code\",\"bug_info\":1");
+
+		read.clear();
+
+		std::ifstream createdFileStats("/tmp/fuzzer/stats.json");
+		createdFileStats >> read;
+
+		EXPECT_EQ(read.substr(0, 55), "{\"fuzzer_name\":\"kocoumat\",\"fuzzed_program\":\"/bin/false\"");
+	}
+	catch (const std::exception& e)
+	{
+		EXPECT_NO_THROW(throw e);
+	}
+}

@@ -89,6 +89,9 @@ int main(int argc, char* argv[])
 
     std::cerr << "Fuzzing program " << FUZZED_PROG << ", placing results into folder " << RESULT_FUZZ << ", minimize=" << MINIMIZE << ", type=" << fuzzInputType << ", timeout=" << TIMEOUT.count() << ", known_bugs=" << NB_KNOWN_BUGS << std::endl;
 
+    if (NB_KNOWN_BUGS == 0)
+        NB_KNOWN_BUGS = std::numeric_limits<size_t>::max();
+
     try
     {
 

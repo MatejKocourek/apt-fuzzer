@@ -28,7 +28,7 @@ benchmark: build
 	@echo "Annotating files for benchmarking..."
 	@cd tests/fibonacci/ && $(BUILD_DIR)/code-coverage fibonacci.c
 	@echo "Compiling files for benchmarking..."
-	@$(CC) -O0 tests/fibonacci/0_instrumented.c -o tests/fibonacci/fibonacci-instr
+	@$(CC) -O0 tests/fibonacci/0_instrumented_main.c -o tests/fibonacci/fibonacci-instr
 	@$(CC) -O0 tests/fibonacci/fibonacci.c -o tests/fibonacci/fibonacci-og
 	@echo "Running benchmarks..."
 
@@ -49,7 +49,7 @@ benchmark: build
 	SLOWDOWN1=$$((SLOWDOWN % 100)); \
 	echo "Slow-down: $$SLOWDOWN0.$$SLOWDOWN1";
 
-	@rm tests/fibonacci/0_instrumented.c
+	@rm tests/fibonacci/0_instrumented_main.c
 	@rm tests/fibonacci/fibonacci-instr
 	@rm tests/fibonacci/fibonacci-og
 
@@ -57,7 +57,7 @@ benchmark: build
 run: build
 	@echo "Running code coverage tool on files in $(TARGET_COV)/*.c"
 	@cd $(TARGET_COV) && $(BUILD_DIR)/code-coverage *.c
-	@cd $(TARGET_COV) && $(CC) *_instrumented.c -o instr_prog
+	@cd $(TARGET_COV) && $(CC) *_instrumented_main.c -o instr_prog
 	@cd $(TARGET_COV) && ./instr_prog $(ARGS_COV)
 	@cd $(TARGET_COV) && cat coverage.lcov
 clean:

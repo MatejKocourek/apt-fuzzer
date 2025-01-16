@@ -271,6 +271,8 @@ namespace mutators {
     }
 }
 
+static size_t currentAsanOffset = 0;
+
 struct fuzzer {
     std::atomic<size_t> nb_before_min = 0;
     std::atomic<size_t> nb_failed_runs = 0;
@@ -543,6 +545,7 @@ struct fuzzer {
         std::chrono::duration<double, std::milli> timeout;
     };
 
+    virtual size_t asanOffset() const = 0;
 
     struct AddressSanitizerError : public ReturnCodeError
     {
@@ -598,7 +601,7 @@ struct fuzzer {
                         else
                             asan = match[1];
                         //std::filesystem::path(std::string(match2[1])).filename().string()
-                        res.emplace(std::move(asan), match2[1], match2[2]);
+                        res.emplace(std::move(asan), match2[1], std::to_string(std::stoi(match2[2]) - currentAsanOffset));
                         //std::cerr << "File: " << match2[1] << ", line: " << match2[2] << std::endl;
                     }
                 }
@@ -788,7 +791,7 @@ struct fuzzer {
         output <<
             //"{"
                 "\"fuzzer_name\":"              "\"kocoumat\","
-                "\"fuzzed_program\":"           "\""; escape(output, FUZZED_PROG.string()) << "\","
+                "\"fuzzed_program\":"           "\"" << realFilename  << "\","
                 "\"nb_runs\":" << statisticsExecution.count() << ","
                 "\"nb_failed_runs\":" << nb_failed_runs.load(std::memory_order_relaxed) << ","
                 "\"nb_hanged_runs\":" << nb_hanged_runs.load(std::memory_order_relaxed) << ","
@@ -900,6 +903,7 @@ struct fuzzer {
 
 
     std::unique_ptr<ExecutionInput> executionInput;
+    std::string realFilename;
 
 public:
     fuzzer(std::filesystem::path FUZZED_PROG, std::filesystem::path RESULT_FUZZ, bool MINIMIZE, std::string_view fuzzInputType, std::chrono::seconds TIMEOUT, size_t NB_KNOWN_BUGS) : FUZZED_PROG(FUZZED_PROG), RESULT_FUZZ(RESULT_FUZZ), MINIMIZE(MINIMIZE), fuzzInputType(fuzzInputType), TIMEOUT(TIMEOUT), NB_KNOWN_BUGS(NB_KNOWN_BUGS)//, minSize(minSize), maxSize(maxSize)
@@ -927,6 +931,7 @@ public:
 
     void run()
     {
+        currentAsanOffset = asanOffset();
         std::atomic<bool> threadsRunning = true;
         std::jthread updateStats([&]() {
             while (threadsRunning)
@@ -971,7 +976,12 @@ struct fuzzer_blackbox : public fuzzer
 {
     fuzzer_blackbox(std::filesystem::path FUZZED_PROG, std::filesystem::path RESULT_FUZZ, bool MINIMIZE, std::string_view INPUT, std::chrono::seconds TIMEOUT, size_t NB_KNOWN_BUGS/*, size_t minSize = 1, size_t maxSize = 1024*/) : fuzzer(std::move(FUZZED_PROG), std::move(RESULT_FUZZ), std::move(MINIMIZE), std::move(INPUT), std::move(TIMEOUT), std::move(NB_KNOWN_BUGS))//, minSize(minSize), maxSize(maxSize)
     {
+        realFilename = FUZZED_PROG.string();
+    }
 
+    virtual size_t asanOffset() const override
+    {
+        return 0;
     }
 
     virtual void fuzz() override
@@ -1006,6 +1016,7 @@ struct fuzzer_blackbox : public fuzzer
 
 static const std::regex linesFound("LF:(\\d+)");
 static const std::regex linesHit("LH:(\\d+)");
+static const std::regex regexFilename("SF:(.+)");
 
 static std::string loadFile(const std::filesystem::path& path)
 {
@@ -1035,6 +1046,11 @@ struct fuzzer_greybox : public fuzzer
         default:
             UNREACHABLE;
         }
+    }
+
+    virtual size_t asanOffset() const override
+    {
+        return 4;
     }
 
     enum class POWER_SCHEDULE_T : uint8_t
@@ -1208,7 +1224,17 @@ struct fuzzer_greybox : public fuzzer
 
         return static_cast<double>(covered) / total;
     }
-
+    
+    void updateFilename(const std::string& lcov)
+    {
+        if (realFilename.empty()) [[unlikely]]
+        {
+            std::smatch match;
+            if (!std::regex_search(lcov, match, regexFilename))
+                throw std::runtime_error("LCOV file not valid");
+            realFilename = match[1];
+        }
+    }
 
     void fuzz()
     {
@@ -1216,6 +1242,8 @@ struct fuzzer_greybox : public fuzzer
         std::cerr << "Executing initial seeds..." << std::endl;
         for (const auto& i : std::filesystem::directory_iterator(INPUT_SEEDS))
         {
+            if (!keepRunning)
+                break;
             if (i.is_regular_file())
             {
                 // Run directly on this seed
@@ -1225,7 +1253,7 @@ struct fuzzer_greybox : public fuzzer
 
                 auto res = execute_with_timeout(*executionInput);
                 
-                auto error = dealWithResult(input, std::move(res), *executionInput, false);
+                auto error = dealWithResult(input, res, *executionInput, false);
 
                 const std::string* executedCoverageOutput;
 
@@ -1319,6 +1347,7 @@ struct fuzzer_greybox : public fuzzer
                 auto lcov = loadFile(COVERAGE_FILE);
 
                 auto executedCoverage = coverage(lcov);
+                updateFilename(lcov);
 
                 auto it = hashmap.emplace(std::move(lcov), 0);
                 it.first->second++;;
@@ -1332,7 +1361,7 @@ struct fuzzer_greybox : public fuzzer
                     if (executedCoverage > bestCoverage)
                     {
                         bestCoverage = executedCoverage;
-                        std::cerr << "Just improved coverage! nb_runs=" << statisticsExecution.count() << std::endl;
+                        std::cerr << "Just improved coverage in " << realFilename << "! From "<<bestCoverage <<" to " << executedCoverage << ". nb_runs=" << statisticsExecution.count() << std::endl;
                     }
 
                     //Add new interesting seed (higher coverage)
