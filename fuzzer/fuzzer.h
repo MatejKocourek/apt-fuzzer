@@ -791,7 +791,7 @@ struct fuzzer {
         output <<
             //"{"
                 "\"fuzzer_name\":"              "\"kocoumat\","
-                "\"fuzzed_program\":"           "\"" << realFilename  << "\","
+                "\"fuzzed_program\":"           "\"" ; escape(output, FUZZED_PROG.string())  << "\","
                 "\"nb_runs\":" << statisticsExecution.count() << ","
                 "\"nb_failed_runs\":" << nb_failed_runs.load(std::memory_order_relaxed) << ","
                 "\"nb_hanged_runs\":" << nb_hanged_runs.load(std::memory_order_relaxed) << ","
@@ -903,7 +903,6 @@ struct fuzzer {
 
 
     std::unique_ptr<ExecutionInput> executionInput;
-    std::string realFilename;
 
 public:
     fuzzer(std::filesystem::path FUZZED_PROG, std::filesystem::path RESULT_FUZZ, bool MINIMIZE, std::string_view fuzzInputType, std::chrono::seconds TIMEOUT, size_t NB_KNOWN_BUGS) : FUZZED_PROG(FUZZED_PROG), RESULT_FUZZ(RESULT_FUZZ), MINIMIZE(MINIMIZE), fuzzInputType(fuzzInputType), TIMEOUT(TIMEOUT), NB_KNOWN_BUGS(NB_KNOWN_BUGS)//, minSize(minSize), maxSize(maxSize)
@@ -976,7 +975,7 @@ struct fuzzer_blackbox : public fuzzer
 {
     fuzzer_blackbox(std::filesystem::path FUZZED_PROG, std::filesystem::path RESULT_FUZZ, bool MINIMIZE, std::string_view INPUT, std::chrono::seconds TIMEOUT, size_t NB_KNOWN_BUGS/*, size_t minSize = 1, size_t maxSize = 1024*/) : fuzzer(std::move(FUZZED_PROG), std::move(RESULT_FUZZ), std::move(MINIMIZE), std::move(INPUT), std::move(TIMEOUT), std::move(NB_KNOWN_BUGS))//, minSize(minSize), maxSize(maxSize)
     {
-        realFilename = FUZZED_PROG.string();
+
     }
 
     virtual size_t asanOffset() const override
@@ -1224,17 +1223,6 @@ struct fuzzer_greybox : public fuzzer
 
         return static_cast<double>(covered) / total;
     }
-    
-    void updateFilename(const std::string& lcov)
-    {
-        if (realFilename.empty()) [[unlikely]]
-        {
-            std::smatch match;
-            if (!std::regex_search(lcov, match, regexFilename))
-                throw std::runtime_error("LCOV file not valid");
-            realFilename = match[1];
-        }
-    }
 
     void fuzz()
     {
@@ -1347,7 +1335,6 @@ struct fuzzer_greybox : public fuzzer
                 auto lcov = loadFile(COVERAGE_FILE);
 
                 auto executedCoverage = coverage(lcov);
-                updateFilename(lcov);
 
                 auto it = hashmap.emplace(std::move(lcov), 0);
                 it.first->second++;;
@@ -1360,8 +1347,8 @@ struct fuzzer_greybox : public fuzzer
 
                     if (executedCoverage > bestCoverage)
                     {
+                        std::cerr << "Just improved coverage! From "<<bestCoverage <<" to " << executedCoverage << ". nb_runs=" << statisticsExecution.count() << std::endl;
                         bestCoverage = executedCoverage;
-                        std::cerr << "Just improved coverage in " << realFilename << "! From "<<bestCoverage <<" to " << executedCoverage << ". nb_runs=" << statisticsExecution.count() << std::endl;
                     }
 
                     //Add new interesting seed (higher coverage)

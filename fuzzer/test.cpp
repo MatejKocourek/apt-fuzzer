@@ -373,7 +373,10 @@ TEST_F(Greybox, greybox_fuzz) {
 		std::string read;
 		createdFile >> read;
 
-		EXPECT_EQ(read.substr(0, 48), "{\"input\":\"5\",\"oracle\":\"return_code\",\"bug_info\":1");
+		// Any input of len 1 can cause the fuzzer to find the result. If there is only 1 char, it can be any.
+		auto eq1 = read.substr(0, 48);
+		eq1[10] = '0';
+		EXPECT_EQ(eq1, "{\"input\":\"0\",\"oracle\":\"return_code\",\"bug_info\":1");
 
 		read.clear();
 
