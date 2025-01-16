@@ -94,7 +94,7 @@ namespace generators {
         switch (whichInput(gen))
         {
         case 0:
-            return generators::generateRandomString(dist(gen), 33, 126);
+            return generators::generateRandomString(dist(gen), 32, 126);
         case 1:
             return generators::generateRandomNum(1, 1000000);
         default:
@@ -103,6 +103,44 @@ namespace generators {
     }
 }
 
+void escape(std::ostream& out, char c)
+{
+    if (c < 32)
+        return;//hack
+    switch (c)
+    {
+    case '\u007F':
+        out << "\\u007F";
+        break;
+    case '\b':
+        out << "\\b";
+        break;
+    case '\f':
+        out << "\\f";
+        break;
+    case '\n':
+        out << "\\n";
+        break;
+    case '\t':
+        out << "\\t";
+        break;
+    case '\\':
+    case '"':
+        out << '\\';
+        [[fallthrough]];
+    default:
+        out << c;
+        break;
+    }
+}
+
+void escape(std::ostream& out, std::string_view& str)
+{
+    for (const auto& c : str)
+    {
+        escape(out, c);
+    }
+}
 
 namespace mutators {
     void deleteBlock(std::string& str)
@@ -170,21 +208,16 @@ namespace mutators {
         input = std::to_string(num);
     }
 
-    template<uint8_t maxBit>
-    void flipBit(std::string& input)
-    {
-        std::uniform_int_distribution<size_t> distPos(0, input.size() - 1);
-        std::uniform_int_distribution<int> distBit(0, maxBit-1);
 
-        input[distPos(gen)] ^= (1 << distBit(gen));
-    }
-    void flipBitBIN(std::string& input)
-    {
-        return flipBit<8>(input);
-    }
     void flipBitASCII(std::string& input)
     {
-        return flipBit<7>(input);
+        std::uniform_int_distribution<size_t> distPos(0, input.size() - 1);
+        std::uniform_int_distribution<int> distBit(0, 6);
+
+        input[distPos(gen)] ^= (1 << distBit(gen));
+
+        if (input[distPos(gen)] < 32)
+            input[distPos(gen)] += 32;
     }
     void addASCII(std::string& input)
     {
@@ -198,6 +231,9 @@ namespace mutators {
 
         input[distPos(gen)] += val;
         input[distPos(gen)] &= 0b01111111;
+
+        if (input[distPos(gen)] < 32)
+            input[distPos(gen)] += 32;
     }
 
     void randomMutant(std::string& input1, const std::string& input2)
