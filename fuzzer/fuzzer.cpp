@@ -123,7 +123,7 @@ int main(int argc, char* argv[])
             }
             else
             {
-                std::filesystem::path INPUT_SEEDS = argv[8];
+                std::filesystem::path INPUT_SEEDS = argv[9];
                 std::cerr << "Seed directory provided: " << INPUT_SEEDS << std::endl;
                 fuzzer_greybox greybox(std::move(FUZZED_PROG), std::move(RESULT_FUZZ), std::move(MINIMIZE), std::move(fuzzInputType), std::move(TIMEOUT), std::move(NB_KNOWN_BUGS), schedule, std::move(COVERAGE_FILE), std::move(INPUT_SEEDS));
                 myFuzzer = &greybox;
