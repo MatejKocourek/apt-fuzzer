@@ -42,9 +42,9 @@ task2-3-test:
       - fuzzer/*
       - .gitlab-ci.yml
   script:
-    - apt-get update -y && apt install -y make cmake g++ lcov libboost-all-dev libgtest-dev curl llvm-14 clang-14
+    - apt-get update -y && apt install -y make cmake g++ lcov libboost-all-dev libgtest-dev curl llvm-17 clang-17
     - curl -1sLf 'https://dl.cloudsmith.io/public/mull-project/mull-stable/setup.deb.sh' | bash
-    - apt-get update -y && apt install -y mull-14
+    - apt-get update -y && apt install -y mull-17
     - cd fuzzer
     - make test
   coverage:  "/lines......: (\\d+\\.?\\d*%)/"
