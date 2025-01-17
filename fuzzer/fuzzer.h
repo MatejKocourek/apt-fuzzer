@@ -1,5 +1,4 @@
 #pragma once
-
 #include <iostream>
 #include <random>
 #include <string>
@@ -20,9 +19,7 @@
 #include <utility>
 #include <set>
 
-//std::unreachable();
-#define UNREACHABLE assert(false)
-//__builtin_unreachable()
+#define UNREACHABLE __builtin_unreachable()
 
 //thread_local std::random_device rd;  // Seed for the random number engine
 /*thread_local */std::mt19937 gen/*(rd())*/; // Mersenne Twister engine seeded with `rd`
@@ -30,6 +27,9 @@
 static const std::regex errorTypeRegex("ERROR: AddressSanitizer: (.*) on address");
 static const std::regex locationRegex("(main.c):(\\d+)");
 
+/// <summary>
+/// All random string generators
+/// </summary>
 namespace generators {
     std::string generateRandomAlphaNum(std::size_t size) {
         constexpr char alphaNumerical[] = { '0','1','2','3','4','5','6','7','8','9','A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q','R','S','T','U','V','W','X','Y','Z','a','b','c','d','e','f','g','h','i','j','k','l','m','n','o','p','q','r','s','t','u','v','w','x','y','z' };
@@ -101,6 +101,12 @@ namespace generators {
     }
 }
 
+/// <summary>
+/// Escape a char to JSON format
+/// </summary>
+/// <param name="out">Output stream to escape to</param>
+/// <param name="c">Character to escape</param>
+/// <returns>Output stream from argument</returns>
 std::ostream& escape(std::ostream& out, char c)
 {
     if (c < 32)
@@ -133,6 +139,12 @@ std::ostream& escape(std::ostream& out, char c)
     return out;
 }
 
+/// <summary>
+/// Escape a string to JSON format
+/// </summary>
+/// <param name="out">Output stream to escape to</param>
+/// <param name="str">String to escape</param>
+/// <returns>Output stream from argument</returns>
 std::ostream& escape(std::ostream& out, const std::string_view& str)
 {
     for (const auto& c : str)
@@ -142,7 +154,13 @@ std::ostream& escape(std::ostream& out, const std::string_view& str)
     return out;
 }
 
+/// <summary>
+/// Mutators that can change existing strings
+/// </summary>
 namespace mutators {
+    /// <summary>
+    /// Deletes block of random size from random location at the string
+    /// </summary>
     void deleteBlock(std::string& str)
     {
         if (str.size() <= 1) [[unlikely]]
@@ -161,6 +179,10 @@ namespace mutators {
 
         str.erase(start, blockSize);
     }
+
+    /// <summary>
+    /// Inserts new block of random size to random location at the string
+    /// </summary>
     void insertBlock(std::string& input)
     {
         std::exponential_distribution<double> distLen(1.0);
@@ -170,6 +192,10 @@ namespace mutators {
 
         input.insert(blockStart, generators::generateRandomString(blockLen,33,126));
     }
+
+    /// <summary>
+    /// Insert random digit somewhere random in the string
+    /// </summary>
     void insertDigit(std::string& input)
     {
         std::uniform_int_distribution<size_t> distChar(0, 9);
@@ -179,6 +205,12 @@ namespace mutators {
 
         input.insert(input.begin() + blockStart, (char)(distChar(gen) + '0'));
     }
+
+    /// <summary>
+    /// Join two strings together
+    /// </summary>
+    /// <param name="input">First string, will increase in size</param>
+    /// <param name="input2">Second string, will be added to the first one</param>
     void concat(std::string& input, const std::string& input2)
     {
         input.reserve(input.size() + input2.size());
@@ -208,7 +240,9 @@ namespace mutators {
         input = std::to_string(num);
     }
 
-
+    /// <summary>
+    /// Flip random bit in random byte in a string, so that it remains an ASCII character
+    /// </summary>
     void flipBitASCII(std::string& input)
     {
         std::uniform_int_distribution<size_t> distPos(0, input.size() - 1);
@@ -219,6 +253,10 @@ namespace mutators {
         if (input[distPos(gen)] < 32)
             input[distPos(gen)] += 32;
     }
+
+    /// <summary>
+    /// Add random number to random byte in a string, so that it remains an ASCII character
+    /// </summary>
     void addASCII(std::string& input)
     {
         std::uniform_int_distribution<size_t> distPos(0, input.size() - 1);
@@ -236,6 +274,11 @@ namespace mutators {
             input[distPos(gen)] += 32;
     }
 
+    /// <summary>
+    /// Selects random mutator and applies the mutation
+    /// </summary>
+    /// <param name="input1">Mutation will be applied to this string</param>
+    /// <param name="input2">Some mutators will use this second string to read from</param>
     void randomMutant(std::string& input1, const std::string& input2)
     {
         std::uniform_int_distribution<int> mutants(0, 5);
@@ -258,11 +301,18 @@ namespace mutators {
             UNREACHABLE;
         }
     }
+
+    /// <summary>
+    /// Perform several random mutations
+    /// </summary>
+    /// <param name="input1">String to mutate</param>
+    /// <param name="input2">Some mutators will use this second string to read from</param>
+    /// <returns>Mutated string</returns>
     std::string randomNumberOfRandomMutants(const std::string& input1, const std::string& input2)
     {
         std::string res = input1;
 
-        std::exponential_distribution<double> distVal(1);
+        std::exponential_distribution<double> distVal(0.5);
 
         for (size_t i = 1 + round(distVal(gen)); i != 0; i--)
             randomMutant(res, input2);
@@ -273,6 +323,9 @@ namespace mutators {
 
 static size_t currentAsanOffset = 0;
 
+/// <summary>
+/// Represents the base class for black/grey box fuzzing
+/// </summary>
 struct fuzzer {
     std::atomic<size_t> nb_before_min = 0;
     std::atomic<size_t> nb_failed_runs = 0;
@@ -282,8 +335,14 @@ struct fuzzer {
     StatisticsMemory<double> statisticsMinimization;
     StatisticsMemory<uint32_t> statisticsMinimizationSteps;
 
+    /// <summary>
+    /// This bool will be turned to false when fuzzer should terminate
+    /// </summary>
     std::atomic<bool> keepRunning = true;
 
+    /// <summary>
+    /// Result of one execution
+    /// </summary>
     struct ExecutionResult {
         int return_code;
         std::string stdout_output;
@@ -294,6 +353,9 @@ struct fuzzer {
         bool operator==(const ExecutionResult&) const = default;
     };
 
+    /// <summary>
+    /// Base class for execution inputs
+    /// </summary>
     struct ExecutionInput
     {
         ExecutionInput(std::filesystem::path executablePath, std::chrono::milliseconds timeout) : executablePath(std::move(executablePath)), timeout(std::move(timeout)) {}
@@ -309,6 +371,9 @@ struct fuzzer {
         virtual ~ExecutionInput() = default;
     };
 
+    /// <summary>
+    /// Execution input in form of a file content
+    /// </summary>
     struct FileInput final : public ExecutionInput
     {
         FileInput(std::filesystem::path executablePath, std::chrono::milliseconds timeout, std::string path) : ExecutionInput(std::move(executablePath), std::move(timeout)), path(std::move(path)) {}
@@ -333,6 +398,9 @@ struct fuzzer {
         const std::string path;
     };
 
+    /// <summary>
+    /// Execution input in form of a standard input
+    /// </summary>
     struct CinInput final : public ExecutionInput
     {
         CinInput(std::filesystem::path executablePath, std::chrono::milliseconds timeout) : ExecutionInput(std::move(executablePath), std::move(timeout)) {}
@@ -361,6 +429,11 @@ struct fuzzer {
         std::string_view cinInput;
     };
 
+    /// <summary>
+    /// Execute program in the system with a timeout and return its results
+    /// </summary>
+    /// <param name="executionInput">What to execute and how</param>
+    /// <returns>Result of the executions</returns>
     ExecutionResult execute_with_timeout(const ExecutionInput& executionInput) {
         using namespace boost::process;
 
@@ -418,21 +491,42 @@ struct fuzzer {
         return { std::move(process.exit_code()), std::move(stdout_future.get()), std::move(stderr_future.get()), false, duration };
     }
 
+    /// <summary>
+    /// Base class for various errors that the oracle catches
+    /// </summary>
     struct DetectedError
     {
+        /// <summary>
+        /// Checks whether this error was present in the output
+        /// </summary>
         virtual bool isErrorEncountered(const ExecutionResult& executionResult) const = 0;
 
+        /// <summary>
+        /// Name of the oracle, as it should be in JSON export
+        /// </summary>
         virtual const char* errorName() const = 0;
 
+        /// <summary>
+        /// Folder that the oracle should export to
+        /// </summary>
         virtual const char* folder() const = 0;
 
+        /// <summary>
+        /// Export info about this bug to a stream
+        /// </summary>
         virtual std::ostream& bugInfo(std::ostream& os) const = 0;
 
+        /// <summary>
+        /// Compares if two errors are the same for deduplication purposes
+        /// </summary>
         virtual bool operator == (const DetectedError& Other) const = 0;
 
         virtual ~DetectedError() = default;
     };
 
+    /// <summary>
+    /// Oracle that catches a non-zero return code
+    /// </summary>
     struct ReturnCodeError : public DetectedError
     {
         ReturnCodeError(int returnCode) : returnCode(std::move(returnCode)) {}
@@ -495,6 +589,9 @@ struct fuzzer {
         const int returnCode;
     };
 
+    /// <summary>
+    /// Oracle that catches hangs of the program
+    /// </summary>
     struct TimeoutError final : public DetectedError
     {
         bool operator==(const TimeoutError& other) const
@@ -560,6 +657,9 @@ struct fuzzer {
 
     virtual size_t asanOffset() const = 0;
 
+    /// <summary>
+    /// Oracle that catches address sanitizer errors
+    /// </summary>
     struct AddressSanitizerError : public ReturnCodeError
     {
         AddressSanitizerError(std::string asanType, std::string file, std::string line) : asanType(std::move(asanType)), file(std::move(file)), line(std::move(line)), ReturnCodeError(1) {}
@@ -591,15 +691,13 @@ struct fuzzer {
         static std::optional<AddressSanitizerError> tryDetectError(const ExecutionResult& executionResult)
         {
             std::optional<AddressSanitizerError> res;
-            //const std::string test = "==22836==ERROR: AddressSanitizer: stack-buffer-overflow on address 0x7ffe6d166b08 at pc\n#3 0x64161615 in main tests/minimization/main.c:17\n#4 0x6456564...";
 
             if (executionResult.return_code == 1)
             {
                 std::smatch match;
                 if (std::regex_search(executionResult.stderr_output, match, errorTypeRegex))
                 {
-                    //std::cerr << "Caught ASAN " << match[1] << " in " << std::endl;
-                    //std::cerr << executionResult.stderr_output << std::endl;
+                    //std::cerr << "Caught ASAN " << match[1] << " in " << std::endl << executionResult.stderr_output << std::endl;
 
                     std::smatch match2;
 
@@ -613,9 +711,8 @@ struct fuzzer {
                             asan = "global";
                         else
                             asan = match[1];
-                        //std::filesystem::path(std::string(match2[1])).filename().string()
+
                         res.emplace(std::move(asan), match2[1], std::to_string(std::stoi(match2[2]) - currentAsanOffset));
-                        //std::cerr << "File: " << match2[1] << ", line: " << match2[2] << std::endl;
                     }
                 }
 
@@ -651,6 +748,11 @@ struct fuzzer {
         virtual ~AddressSanitizerError() = default;
     };
 
+    /// <summary>
+    /// Catch error from runner output
+    /// </summary>
+    /// <param name="result">Output from the runner</param>
+    /// <returns>Error present in this output. Nullptr if no error present.</returns>
     static std::unique_ptr<DetectedError> detectError(const ExecutionResult& result)
     {
         {
@@ -672,6 +774,14 @@ struct fuzzer {
         return std::unique_ptr<DetectedError>();
     }
 
+    /// <summary>
+    /// Minimize input in a way that the same error still persists, but the input is shortest as possible
+    /// </summary>
+    /// <param name="input">Unminimized input string that throws error</param>
+    /// <param name="prevResult">Error that should be hit</param>
+    /// <param name="executionInput">Where to test all the inputs</param>
+    /// <param name="totalRuns">How many times it runs (statistic purposes)</param>
+    /// <returns>Minimized string</returns>
     std::string minimizeInput(const std::string_view& input, const DetectedError& prevResult, ExecutionInput& executionInput, size_t& totalRuns)
     {
         constexpr int divisionsStepStart = 2;
@@ -738,8 +848,9 @@ struct fuzzer {
         }
     }
 
-
-
+    /// <summary>
+    /// JSON crash report
+    /// </summary>
     struct CrashReport
     {
         std::string input;
@@ -750,7 +861,9 @@ struct fuzzer {
         std::chrono::duration<double, std::milli> minimization_time;
     };
 
-
+    /// <summary>
+    /// Export information same for all fuzzers about a crash into a stream
+    /// </summary>
     static void exportReportCommon(const CrashReport& report, std::ostream& output)
     {
         output <<
@@ -766,7 +879,18 @@ struct fuzzer {
             "}"
             ;
     }
+
+    /// <summary>
+    /// Export information about the report into a stream
+    /// </summary>
     virtual void exportReport(const CrashReport& report, std::ostream& output) const = 0;
+
+    /// <summary>
+    /// Save the report about an error into a file
+    /// </summary>
+    /// <param name="report">Report to save</param>
+    /// <param name="name">Name of the file to save to</param>
+    /// <param name="resultFolder">Where to save it</param>
     void saveReport(const CrashReport& report, const std::string& name, const std::filesystem::path& resultFolder)
     {
         std::filesystem::path resultFile;
@@ -800,6 +924,9 @@ struct fuzzer {
     std::mutex m;
     std::vector<std::unique_ptr<DetectedError>> uniqueResults;
 
+    /// <summary>
+    /// Export statistics same for both fuzzers into a stream
+    /// </summary>
     void exportStatisticsCommon(std::ostream& output)
     {
         std::lock_guard guard(m);
@@ -831,8 +958,15 @@ struct fuzzer {
             ;
     }
 
+    /// <summary>
+    /// Export all statistics into a stream
+    /// </summary>
+    /// <param name="output"></param>
     virtual void exportStatistics(std::ostream& output) = 0;
 
+    /// <summary>
+    /// Save stats into a file
+    /// </summary>
     void saveStatistics()
     {
         auto path = RESULT_FUZZ / "stats.json";
@@ -847,11 +981,17 @@ struct fuzzer {
 
         if (!output)
             std::cerr << "Error saving statistics!" << std::endl;
-        //else
-          //  std::cerr << "Stats saved." << std::endl;
     }
 
-    DetectedError* dealWithResult(const std::string_view& input, ExecutionResult result, ExecutionInput& executionInput, bool fromMin)
+    /// <summary>
+    /// Checks whether error is present in runner output and do appropriate actions with it
+    /// </summary>
+    /// <param name="input">Input string that was ran by the runner</param>
+    /// <param name="result">Result of the runner</param>
+    /// <param name="executionInput">Where to test inputs</param>
+    /// <param name="fromMin">Is this random or from minimization</param>
+    /// <returns>Pointer to erorr if occured. Do not free.</returns>
+    DetectedError* dealWithResult(const std::string_view& input, ExecutionResult result, ExecutionInput& executionInput, bool fromMin = false)
     {
         if (!keepRunning)
             return nullptr;
@@ -943,6 +1083,9 @@ public:
         }
     }
 
+    /// <summary>
+    /// Run the fuzzer (blocking call)
+    /// </summary>
     void run()
     {
         currentAsanOffset = asanOffset();
@@ -1047,12 +1190,12 @@ static std::string loadFile(const std::filesystem::path& path)
 {
     auto file = std::ifstream(path);
 
-    if (!file.is_open())
+    if (!file.is_open()) [[unlikely]]
         throw std::runtime_error("Cannot open file: " + path.string());
 
     std::string sourcecode = std::string(std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>());
 
-    if (file.fail())
+    if (file.fail()) [[unlikely]]
         throw std::runtime_error("Error reading file: " + path.string());
 
     return sourcecode;
@@ -1091,11 +1234,9 @@ struct fuzzer_greybox : public fuzzer
         }
         const std::string input;
         const std::string& h; //hash of the output
-        //const double coverage; //coverage of the output
         double e; //energy
 
         const double T; // execution time
-        //size_t s; // size in bytes
         size_t nm; // how many times it was already selected to be mutated
         size_t nc; // how many times it led to an increase in coverage
 
@@ -1129,27 +1270,16 @@ struct fuzzer_greybox : public fuzzer
         out << '}';
     }
 
-    //double rankAFL(const seed& s)
-    //{
-    //    return s.T.count() * s.input.size() * s.nm / s.nc;
-    //}
-    //double rankExp(const seed& s)
-    //{
-    //    return 1.0 / std::pow(hashmap.at(*s.h), 5);
-    //}
-
-    //seed& weightedRandomChoiceAFL(std::vector<seed>& options)
-    //{
-    //    return weightedRandomChoice(options, rankAFL);
-    //}
-    //seed& weightedRandomChoiceExp(std::vector<seed>& options)
-    //{
-    //    return weightedRandomChoice(options, rankExp);
-    //}
-
     double bestCoverage = 0;
     std::unordered_map<std::string, size_t> hashmap;
 
+    /// <summary>
+    /// Weighted random choice of a seed, where some portion of best seeds will be given 50% choice be selected
+    /// </summary>
+    /// <typeparam name="extract">Whether the function should remove the seed from the queue</typeparam>
+    /// <param name="options">Queue to select from</param>
+    /// <param name="percent">How many seeds will be given priority</param>
+    /// <returns>Selected seed, extracted or copied</returns>
     template <bool extract>
     static seed weightedRandomChoiceFavourite(std::multiset<seed>& options, float percent) {
         // Calculate the total weight
@@ -1188,6 +1318,12 @@ struct fuzzer_greybox : public fuzzer
         throw std::runtime_error("Failed to select a weighted random choice.");
     }
 
+    /// <summary>
+    /// Weighted random choice of a seed
+    /// </summary>
+    /// <typeparam name="extract">Whether the function should remove the seed from the queue</typeparam>
+    /// <param name="options">Queue to select from</param>
+    /// <returns>Selected seed, extracted or copied</returns>
     template <bool extract>
     static seed weightedRandomChoiceNormal(std::multiset<seed>& options) {
         // Calculate the total weight
@@ -1218,6 +1354,9 @@ struct fuzzer_greybox : public fuzzer
         throw std::runtime_error("Failed to select a weighted random choice.");
     }
 
+    /// <summary>
+    /// Reads coverage percentage from a input
+    /// </summary>
     static double coverage(const std::string& lcov)
     {
         size_t covered;
@@ -1237,7 +1376,13 @@ struct fuzzer_greybox : public fuzzer
         return static_cast<double>(covered) / total;
     }
 
-    void trySeed(seed * selected, std::string&& mutant, bool alwaysInsert = false)
+    /// <summary>
+    /// Try to run a seed, and reward it if succeeds
+    /// </summary>
+    /// <param name="selected">Seed that the mutant was taken from, nullptr if no parent</param>
+    /// <param name="mutant">Mutant to run on</param>
+    /// <param name="alwaysInsert">Always insert in the queue, even if no improvement occurs</param>
+    void trySeed(seed * selected, std::string mutant, bool alwaysInsert = false)
     {
         executionInput->setInput(mutant);
 
@@ -1360,6 +1505,9 @@ struct fuzzer_greybox : public fuzzer
         }
     }
 
+    /// <summary>
+    /// Populate a folder with random seeds
+    /// </summary>
     void populateWithMySeeds()
     {
         std::cerr << "Populating folder with my seeds" << std::endl;

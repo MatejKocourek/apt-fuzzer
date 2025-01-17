@@ -319,6 +319,12 @@ TEST(Mutators, add) {
 	EXPECT_EQ(tmp.size(), 4);
 }
 
+TEST(Mutators, changeNum) {
+	std::string tmp = "42";
+	mutators::changeNum(tmp);
+	EXPECT_NE(std::stoi(tmp), 42);
+}
+
 TEST(Power, weightedChoiceFavourite) {
 	std::string input = "test";
 	std::string hash = "hash";
