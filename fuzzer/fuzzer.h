@@ -1145,27 +1145,16 @@ struct fuzzer_greybox : public fuzzer
     double bestCoverage = 0;
     std::unordered_map<std::string, size_t> hashmap;
 
-
-    static seed weightedRandomChoice(std::multiset<seed>& options, float percent, bool extract = false) {
+    template <bool extract>
+    static seed weightedRandomChoiceFavourite(std::multiset<seed>& options, float percent) {
         // Calculate the total weight
 
-        double totalWeight = 0;
-
+        double totalWeight = 1;
 
         const size_t firstTenPercent = options.size() * percent;
         const double coefficientGood = 0.5 / firstTenPercent;
         const double coefficientWorse = 0.5 / (options.size() - firstTenPercent);
 
-        size_t i = 0;
-        for (auto it = options.begin(); it != options.end(); it++) {
-            if (i <= firstTenPercent)
-                totalWeight += coefficientGood;// totalWeight += it->e * coefficientGood; // Better score
-            else
-                totalWeight += coefficientWorse;// totalWeight += it->e * coefficientWorse; // Worse score
-            i++;
-        }
-
-        
         std::uniform_real_distribution<> dis(0.0, totalWeight); // Range [0, totalWeight)
 
         // Generate a random number
@@ -1174,8 +1163,7 @@ struct fuzzer_greybox : public fuzzer
         // Find the chosen option based on the random value
         double cumulativeWeight = 0.0;
 
-
-        i = 0;
+        size_t i = 0;
         for (auto it = options.begin(); it != options.end(); it++) {
             if (i <= firstTenPercent)
                 cumulativeWeight += coefficientGood;// cumulativeWeight += it->e * coefficientGood; // Better score
@@ -1183,11 +1171,10 @@ struct fuzzer_greybox : public fuzzer
                 cumulativeWeight += coefficientWorse;// cumulativeWeight += it->e * coefficientWorse; // Worse score
 
             if (randomValue <= cumulativeWeight) {
-                if(extract)
+                if constexpr (extract)
                     return std::move(options.extract(it).value());
                 else
                     return *it;
-                //return option;
             }
             i++;
         }
@@ -1196,35 +1183,35 @@ struct fuzzer_greybox : public fuzzer
         throw std::runtime_error("Failed to select a weighted random choice.");
     }
 
-    //static seed weightedRandomChoiceNormal(std::multiset<seed>& options) {
-    //    // Calculate the total weight
-    //    double totalWeight = 0.0;
-    //    for (const auto& option : options) {
-    //        totalWeight += option.e;
-    //    }
+    template <bool extract>
+    static seed weightedRandomChoiceNormal(std::multiset<seed>& options) {
+        // Calculate the total weight
+        double totalWeight = 0.0;
+        for (const auto& option : options)
+            totalWeight += option.e;
 
-    //    std::uniform_real_distribution<> dis(0.0, totalWeight); // Range [0, totalWeight)
+        std::uniform_real_distribution<> dis(0.0, totalWeight); // Range [0, totalWeight)
 
-    //    // Generate a random number
-    //    double randomValue = dis(gen);
+        // Generate a random number
+        double randomValue = dis(gen);
 
-    //    // Find the chosen option based on the random value
-    //    double cumulativeWeight = 0.0;
+        // Find the chosen option based on the random value
+        double cumulativeWeight = 0.0;
 
-    //    size_t i = 0;
-    //    for (auto it = options.begin(); it != options.end(); it++) {
-    //        cumulativeWeight += it->e;
+        for (auto it = options.begin(); it != options.end(); it++) {
+            cumulativeWeight += it->e;
 
-    //        if (randomValue <= cumulativeWeight) {
-    //            return std::move(options.extract(it).value());
-    //            //return option;
-    //        }
-    //        i++;
-    //    }
+            if (randomValue <= cumulativeWeight) {
+                if constexpr (extract)
+                    return std::move(options.extract(it).value());
+                else
+                    return *it;
+            }
+        }
 
-    //    // If we get here, there was an issue (e.g., no options, weights not positive)
-    //    throw std::runtime_error("Failed to select a weighted random choice.");
-    //}
+        // If we get here, there was an issue (e.g., no options, weights not positive)
+        throw std::runtime_error("Failed to select a weighted random choice.");
+    }
 
     static double coverage(const std::string& lcov)
     {
@@ -1245,9 +1232,80 @@ struct fuzzer_greybox : public fuzzer
         return static_cast<double>(covered) / total;
     }
 
+    void trySeed(seed * selected, std::string&& mutant, bool alwaysInsert = false)
+    {
+        executionInput->setInput(mutant);
+
+        auto res = execute_with_timeout(*executionInput);
+
+        auto error = dealWithResult(mutant, res, *executionInput, false);
+
+        if (error)
+        {
+            // Use bug info as a hash
+            std::stringstream ss;
+            error->bugInfo(ss);
+            auto it = hashmap.emplace(ss.str(), 0);
+            it.first->second++;;
+            const auto& executedCoverageOutput = it.first->first;
+
+            //selected.nc++;
+
+            //Add new interesting seed (crashing)
+            queue.emplace(std::move(mutant), executedCoverageOutput, res.execution_time.count(), powerSchedule(res.execution_time.count(), mutant.size(), 2, 2, executedCoverageOutput), 2, 2);
+        }
+        else
+        {
+            auto lcov = loadFile(COVERAGE_FILE);
+            std::filesystem::remove(COVERAGE_FILE);
+
+            auto executedCoverage = coverage(lcov);
+
+            auto it = hashmap.emplace(std::move(lcov), 0);
+            it.first->second++;;
+            const auto& executedCoverageOutput = it.first->first;
+
+            if ((executedCoverage > bestCoverage) || (selected && executedCoverage == bestCoverage && executedCoverageOutput != selected->h))
+            {
+                if (selected)
+                    selected->nc++;
+
+                if (executedCoverage > bestCoverage)
+                {
+                    std::cerr << "Just improved coverage! From " << bestCoverage << " to " << executedCoverage << ". nb_runs=" << statisticsExecution.count() << std::endl;
+                    bestCoverage = executedCoverage;
+                }
+
+                //Add new interesting seed (higher coverage)
+                queue.emplace(std::move(mutant), executedCoverageOutput, res.execution_time.count(), powerSchedule(res.execution_time.count(), mutant.size(), 2, 2, executedCoverageOutput), 2, 2);
+            }
+           else if(alwaysInsert)
+                queue.emplace(std::move(mutant), executedCoverageOutput, res.execution_time.count(), powerSchedule(res.execution_time.count(), mutant.size(), 2, 1, executedCoverageOutput), 2, 1);
+        }
+
+        if (selected)
+        {
+            selected->e = powerSchedule(selected->T, selected->input.size(), selected->nm, selected->nc, selected->h);
+
+            // Return original seed back
+            queue.insert(std::move(*selected));
+        }
+    }
+
     virtual void fuzz() override
     {
         // Run for initial seeds without mutating
+        std::cerr << "Executing on empty input to set a coverage" << std::endl;
+        executionInput->setInput("");
+        execute_with_timeout(*executionInput);
+        if (std::filesystem::exists(COVERAGE_FILE))
+        {
+            auto lcov = loadFile(COVERAGE_FILE);
+            std::filesystem::remove(COVERAGE_FILE);
+            bestCoverage = coverage(lcov);
+        }
+        std::cerr << "Initial coverage set to " << bestCoverage << std::endl;
+
         std::cerr << "Executing initial seeds..." << std::endl;
         for (const auto& i : std::filesystem::directory_iterator(INPUT_SEEDS))
         {
@@ -1257,140 +1315,43 @@ struct fuzzer_greybox : public fuzzer
             {
                 // Run directly on this seed
                 auto input = loadFile(i.path());
-                executionInput->setInput(input);
 
-
-                auto res = execute_with_timeout(*executionInput);
-                
-                auto error = dealWithResult(input, res, *executionInput, false);
-
-                const std::string* executedCoverageOutput;
-
-                if (error)
-                {
-                    // Use bug info as a hash
-                    std::stringstream ss;
-                    error->bugInfo(ss);
-                    auto it = hashmap.emplace(ss.str(), 0);
-                    it.first->second++;;
-                    executedCoverageOutput = &it.first->first;
-                }
-                else
-                {
-                    auto lcov = loadFile(COVERAGE_FILE);
-                    auto executedCoverage = coverage(lcov);
-
-                    if (executedCoverage > bestCoverage)
-                        bestCoverage = executedCoverage;
-
-                    auto it = hashmap.emplace(std::move(lcov), 0);
-                    it.first->second++;;
-                    executedCoverageOutput = &it.first->first;
-                }
-
-                queue.emplace(std::move(input), *executedCoverageOutput, res.execution_time.count(), powerSchedule(res.execution_time.count(), input.size(), error?2:1, error?2:1, *executedCoverageOutput));
+                trySeed(nullptr, std::move(input), true);
             }
         }
         std::cerr << "Loaded " << queue.size() << " seeds." << std::endl;
+
         std::cerr << "Mutating..." << std::endl;
         while (keepRunning)
         {
-            float coefficient;
-            switch (POWER_SCHEDULE)
-            {
-            case POWER_SCHEDULE_T::simple:
-                coefficient = 0.1;
-                break;
-            case POWER_SCHEDULE_T::boosted:
-                coefficient = 0;
-                break;
-            default:
-                UNREACHABLE;
-            }
-
-            std::string mutant;
-
-            std::optional<seed> selected;
-
             // Make this a hybrid between greybox and blackbox fuzzing. Sometimes, instead of a mutating existing seed, test random input - if working, add it as seed.
             bool makeRandomSeed = generators::randomBool();
             if (makeRandomSeed)
             {
-                mutant = generators::generateRandomInput();
+                trySeed(nullptr, generators::generateRandomInput());
             }
             else
             {
-                selected.emplace(weightedRandomChoice(queue, coefficient, true));
-                selected->nm++;
-
-                mutant = mutators::randomNumberOfRandomMutants(selected->input, weightedRandomChoice(queue, coefficient).input);
-            }
-
-            //std::cerr << "Selected: " << std::endl << selected.input << std::endl;
-
-
-            //std::cerr << "Mutated to: " << std::endl << mutoString << std::endl;
-
-            executionInput->setInput(mutant);
-
-            auto res = execute_with_timeout(*executionInput);
-            
-            auto error = dealWithResult(mutant, res, *executionInput, false);
-
-            if (error)
-            {
-                // Use bug info as a hash
-                std::stringstream ss;
-                error->bugInfo(ss);
-                auto it = hashmap.emplace(ss.str(), 0);
-                it.first->second++;;
-                const auto& executedCoverageOutput = it.first->first;
-
-                //selected.nc++;
-
-                //Add new interesting seed (crashing)
-                queue.emplace(std::move(mutant), executedCoverageOutput, res.execution_time.count(), powerSchedule(res.execution_time.count(), mutant.size(), 2, 2, executedCoverageOutput), 2, 2);
-            }
-            else
-            {
-                auto lcov = loadFile(COVERAGE_FILE);
-
-                auto executedCoverage = coverage(lcov);
-
-                auto it = hashmap.emplace(std::move(lcov), 0);
-                it.first->second++;;
-                const auto& executedCoverageOutput = it.first->first;
-
-                if ((executedCoverage > bestCoverage) || (!makeRandomSeed && executedCoverage == bestCoverage && executedCoverageOutput != selected->h))
+                switch (POWER_SCHEDULE)
                 {
-                    if (!makeRandomSeed)
-                        selected->nc++;
+                case POWER_SCHEDULE_T::simple:
+                {
+                    auto selected = weightedRandomChoiceFavourite<true>(queue, 0.1);
+                    selected.nm++;
 
-                    if (executedCoverage > bestCoverage)
-                    {
-                        std::cerr << "Just improved coverage! From "<<bestCoverage <<" to " << executedCoverage << ". nb_runs=" << statisticsExecution.count() << std::endl;
-                        bestCoverage = executedCoverage;
-                    }
+                    trySeed(&selected, mutators::randomNumberOfRandomMutants(selected.input, weightedRandomChoiceFavourite<false>(queue, 0.1).input));
+                } break;
+                case POWER_SCHEDULE_T::boosted:
+                {
+                    auto selected = weightedRandomChoiceNormal<true>(queue);
+                    selected.nm++;
 
-                    //Add new interesting seed (higher coverage)
-                    queue.emplace(std::move(mutant), executedCoverageOutput, res.execution_time.count(), powerSchedule(res.execution_time.count(), mutant.size(), 1, 1, executedCoverageOutput));
+                    trySeed(&selected, mutators::randomNumberOfRandomMutants(selected.input, weightedRandomChoiceNormal<false>(queue).input));
+                } break;
+                default:
+                    UNREACHABLE;
                 }
-                //else if (executedCoverage == bestCoverage && executedCoverageOutput != selected.h)
-                //{
-                //    selected.nc++;
-
-                //    //Add new interesting seed (different result)
-                //    queue.emplace(std::move(mutant), executedCoverageOutput, res.execution_time.count(), powerSchedule(res.execution_time.count(), mutant.size(), 1, 1, executedCoverageOutput));
-                //}
             }
-
-            if (!makeRandomSeed)
-            {
-                selected->e = powerSchedule(selected->T, selected->input.size(), selected->nm, selected->nc, selected->h);
-
-                // Return original seed back
-                queue.insert(std::move(*selected));
-            }           
         }
     }
 
