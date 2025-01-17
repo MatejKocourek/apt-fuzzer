@@ -948,10 +948,15 @@ public:
         currentAsanOffset = asanOffset();
         std::atomic<bool> threadsRunning = true;
         std::jthread updateStats([&]() {
+            uint8_t counter = 0;
             while (threadsRunning)
             {
-                saveStatistics();
-                std::this_thread::sleep_for(std::chrono::seconds(10));
+                if (counter++ == 10)
+                {
+                    counter = 0;
+                    saveStatistics();
+                }
+                std::this_thread::sleep_for(std::chrono::seconds(1));
             }
             std::cerr << "Program can end, writing one last statistics report and exiting..." << std::endl;
             saveStatistics();

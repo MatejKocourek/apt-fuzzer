@@ -319,14 +319,26 @@ TEST(Mutators, add) {
 	EXPECT_EQ(tmp.size(), 4);
 }
 
-TEST(Power, weightedChoice) {
+TEST(Power, weightedChoiceFavourite) {
 	std::string input = "test";
 	std::string hash = "hash";
 	std::multiset<fuzzer_greybox::seed> options;
-	options.emplace(std::move(input),hash,1,1,1,1);
+	options.emplace(std::move(input), hash, 1, 1, 1, 1);
 
-	auto choice = fuzzer_greybox::weightedRandomChoice(options, 0.1, true);
+	auto choice = fuzzer_greybox::weightedRandomChoiceFavourite<true>(options, 0.1);
 	
+	EXPECT_EQ(hash, choice.h);
+	EXPECT_EQ(options.size(), 0);
+}
+
+TEST(Power, weightedChoiceNormal) {
+	std::string input = "test";
+	std::string hash = "hash";
+	std::multiset<fuzzer_greybox::seed> options;
+	options.emplace(std::move(input), hash, 1, 1, 1, 1);
+
+	auto choice = fuzzer_greybox::weightedRandomChoiceNormal<true>(options);
+
 	EXPECT_EQ(hash, choice.h);
 	EXPECT_EQ(options.size(), 0);
 }
