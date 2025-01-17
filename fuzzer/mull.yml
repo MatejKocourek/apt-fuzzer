@@ -1,0 +1,3 @@
+excludePaths:
+ - fuzzer.cpp
+ - median.h

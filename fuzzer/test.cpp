@@ -349,6 +349,13 @@ TEST(Power, weightedChoiceNormal) {
 	EXPECT_EQ(options.size(), 0);
 }
 
+TEST(Escape, escape) {
+	for (size_t i = 0; i < 128; i++)
+	{
+		EXPECT_GE(escape(ss, char(i)), ' ');
+	}
+}
+
 TEST(Coverage, lcov) {
 	std::string input = "TN:test\n"
 		"SF:filename\n"
