@@ -19,6 +19,8 @@
 #include <utility>
 #include <set>
 
+//#define CAPTURE_STDOUT
+
 #define UNREACHABLE __builtin_unreachable()
 
 //thread_local std::random_device rd;  // Seed for the random number engine
@@ -345,7 +347,9 @@ struct fuzzer {
     /// </summary>
     struct ExecutionResult {
         int return_code;
+#ifdef CAPTURE_STDOUT
         std::string stdout_output;
+#endif
         std::string stderr_output;
         bool timed_out;
         std::chrono::duration<double, std::milli> execution_time;
@@ -437,49 +441,63 @@ struct fuzzer {
     ExecutionResult execute_with_timeout(const ExecutionInput& executionInput) {
         using namespace boost::process;
 
+#ifdef CAPTURE_STDOUT
         ipstream stdout_stream;  // To capture standard output
+#endif
         ipstream stderr_stream;  // To capture standard error
         opstream stdin_stream;   // To provide input
 
-        //std::vector<std::string> arguments;
-
-        //if (!executionInput.getArgument().empty())
-        //    arguments.push_back(std::string(executionInput.getArgument()).c_str());
-
         auto start = std::chrono::high_resolution_clock::now();
-        child process(executionInput.executablePath.c_str(), executionInput.getArguments(), std_out > stdout_stream, std_err > stderr_stream, std_in < stdin_stream);
+        child process(
+            executionInput.executablePath.c_str(),
+            executionInput.getArguments(),
+#ifdef CAPTURE_STDOUT
+            std_out > stdout_stream,
+#else
+            std_out > boost::process::null,
+#endif
+            std_err > stderr_stream,
+            std_in < stdin_stream
+        );
 
         // Feed the process's standard input.
         stdin_stream << executionInput.getCin();
+        stdin_stream.flush();
         stdin_stream.close();
-        //stdin_stream.flush();
         stdin_stream.pipe().close();  // Close stdin to signal end of input
 
-        std::future<std::string> stdout_future = std::async(std::launch::async, [&]() {
+        // Use std::thread and std::promise to implement timeout
+        std::promise<void> exit_signal;
+        std::future<void> exit_future = exit_signal.get_future();
+
+        std::jthread monitor_thread([&]() {
+            process.wait();
+            exit_signal.set_value();
+        });
+
+        // Read all content from ipstream after the process finishes
+        auto read_stream = [](ipstream& stream) {
             std::ostringstream oss;
-            std::string line;
-            while (stdout_stream && std::getline(stdout_stream, line))
-                oss << line << '\n';
+            oss << stream.rdbuf(); // Efficiently reads the entire stream buffer
             return oss.str();
-            });
-
-        std::future<std::string> stderr_future = std::async(std::launch::async, [&]() {
-            std::ostringstream oss;
-            std::string line;
-            while (stderr_stream && std::getline(stderr_stream, line))
-                oss << line << '\n';
-            return oss.str();
-            });
-
-
+        };
+        
         // Wait for process completion with a timeout.
-        bool finished_in_time = process.wait_for(executionInput.timeout);
+        bool finished_in_time = exit_future.wait_for(executionInput.timeout) == std::future_status::ready;
         if (!finished_in_time) {
             process.terminate();  // Kill the process if it times out
             auto duration = std::chrono::duration_cast<std::chrono::duration<double, std::milli>>(std::chrono::high_resolution_clock::now() - start);
             statisticsExecution.addNumber(duration.count());
             nb_hanged_runs.fetch_add(1, std::memory_order_relaxed);
-            return { -1, "", "", true, duration };  // Indicate a timeout occurred
+            return {
+                -1,
+#ifdef CAPTURE_STDOUT
+                read_stream(stdout_stream),
+#endif
+                read_stream(stderr_stream),
+                true,
+                duration 
+           };  // Indicate a timeout occurred
         }
 
         auto duration = std::chrono::duration_cast<std::chrono::duration<double, std::milli>>(std::chrono::high_resolution_clock::now() - start);
@@ -488,7 +506,15 @@ struct fuzzer {
             nb_failed_runs.fetch_add(1, std::memory_order_relaxed);
 
         // Retrieve the outputs and return code
-        return { std::move(process.exit_code()), std::move(stdout_future.get()), std::move(stderr_future.get()), false, duration };
+        return { 
+            std::move(process.exit_code()),
+#ifdef CAPTURE_STDOUT
+            read_stream(stdout_stream),
+#endif
+            read_stream(stderr_stream),
+            false,
+            duration
+        };
     }
 
     /// <summary>
@@ -993,9 +1019,6 @@ struct fuzzer {
     /// <returns>Pointer to erorr if occured. Do not free.</returns>
     DetectedError* dealWithResult(const std::string_view& input, ExecutionResult result, ExecutionInput& executionInput, bool fromMin = false)
     {
-        if (!keepRunning)
-            return nullptr;
-
         CrashReport report;
         size_t errorCount;
         {
@@ -1377,7 +1400,7 @@ struct fuzzer_greybox : public fuzzer
     }
 
     /// <summary>
-    /// Try to run a seed, and reward it if succeeds
+    /// Try to run a seed, and reward it if it succeeds
     /// </summary>
     /// <param name="selected">Seed that the mutant was taken from, nullptr if no parent</param>
     /// <param name="mutant">Mutant to run on</param>

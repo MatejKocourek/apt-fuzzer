@@ -1,4 +1,7 @@
 #include <gtest/gtest.h>
+
+#define CAPTURE_STDOUT
+
 #include "fuzzer.h"
 #include <optional>
 #include <string_view>
@@ -77,7 +80,7 @@ TEST_F(FuzzerCat, execute_running_cin) {
 		input.setInput("test");
 		fuzzer_blackbox::ExecutionResult res = fuzz->execute_with_timeout(input);
 		
-		EXPECT_EQ(res.stdout_output, "test\n");
+		EXPECT_EQ(res.stdout_output, "test");
 		EXPECT_TRUE(res.stderr_output.empty());
 		EXPECT_FALSE(res.timed_out);
 		EXPECT_EQ(res.return_code, 0);
