@@ -360,6 +360,7 @@ TEST(Escape, escape) {
 	}
 }
 
+
 TEST(Coverage, lcov) {
 	std::string input = "TN:test\n"
 		"SF:filename\n"
@@ -418,4 +419,15 @@ TEST_F(Greybox, greybox_fuzz) {
 	{
 		EXPECT_NO_THROW(throw e);
 	}
+}
+
+TEST_F(Greybox, generateMySeeds) {
+	fuzz->populateWithMySeeds(1234);
+
+	size_t counter = 0;
+
+	for (const auto& i : std::filesystem::directory_iterator(fuzz->INPUT_SEEDS))
+		counter++;
+
+	EXPECT_EQ(counter, 1234);
 }

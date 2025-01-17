@@ -51,27 +51,27 @@ namespace generators {
         if (minChar > maxChar) [[unlikely]]
             throw std::invalid_argument("min must be less than or equal to max");
 
-            std::uniform_int_distribution<int> dist(minChar, maxChar);
+        std::uniform_int_distribution<int> dist(minChar, maxChar);
 
-            std::string randomString;
-            randomString.reserve(size);
+        std::string randomString;
+        randomString.reserve(size);
 
-            for (std::size_t i = 0; i < size; ++i) {
-                char tmp = dist(gen);
+        for (std::size_t i = 0; i < size; ++i) {
+            char tmp = dist(gen);
 
-                randomString += tmp; // Generate a random character
-            }
+            randomString += tmp; // Generate a random character
+        }
 
-            return randomString;
+        return randomString;
     }
 
     std::string generateRandomNum(int min, int max) {
         if (min > max) [[unlikely]]
             throw std::invalid_argument("min must be less than or equal to max");
 
-            std::uniform_int_distribution<int> dist(min, max);
+        std::uniform_int_distribution<int> dist(min, max);
 
-            return std::to_string(dist(gen));
+        return std::to_string(dist(gen));
     }
     bool randomBool()
     {
@@ -1508,12 +1508,12 @@ struct fuzzer_greybox : public fuzzer
     /// <summary>
     /// Populate a folder with random seeds
     /// </summary>
-    void populateWithMySeeds()
+    void populateWithMySeeds(size_t loadSize = 1000)
     {
         std::cerr << "Populating folder with my seeds" << std::endl;
         std::filesystem::create_directories(INPUT_SEEDS);
 
-        for (size_t i = 0; i < 100; i++)
+        for (size_t i = 0; i < loadSize; i++)
         {
             std::filesystem::path path = INPUT_SEEDS / (std::to_string(i) + ".txt");
             std::ofstream outFile(path);
