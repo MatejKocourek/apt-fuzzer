@@ -52,11 +52,11 @@ TEST_F(FileInstrumentEmpty, InstrumentLine) {
 }
 
 // Test instrumentChildren with real Tree-sitter node
-TEST_F(FileInstrumentEmpty, InstrumentChildred) {
-    std::string code = "if (true) return 1; else return 0;";
+TEST_F(FileInstrumentEmpty, InstrumentChildren) {
+    std::string code = "{if (true) return 1; else return 0;}";
 
     auto tree = ts::Parser{ tree_sitter_c() }.parseString(std::move(code));
-    ts::Node rootNode = tree.getRootNode();
+    ts::Node rootNode = tree.getRootNode().getChild(0);
 
     // Traverse the parsed source code and instrument children nodes
     fileInstrument->instrumentRecursive(rootNode);
