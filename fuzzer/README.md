@@ -16,6 +16,9 @@ Handcrafted seeds
 Hybrid fuzzing
 - Sometimes the fuzzer chooses to generate a random string as input, instead of mutating an existing seed. If it suceeds, the fuzzer adds it as a new seed. This ensures that there is no regression from blackbox fuzzing.
 
+Statistics
+- Reporting number of unique hashes currently in use
+
 ## Setup
 
 After cloning, run:
