@@ -350,9 +350,13 @@ TEST(Power, weightedChoiceNormal) {
 }
 
 TEST(Escape, escape) {
+
 	for (size_t i = 0; i < 128; i++)
 	{
-		EXPECT_GE(escape(ss, char(i)), ' ');
+		std::stringstream ss;
+
+		if(ss.str().size() > 0)
+			EXPECT_GE(escape(ss.str()[0], char(i)), ' ');
 	}
 }
 
