@@ -354,9 +354,9 @@ TEST(Escape, escape) {
 	for (size_t i = 0; i < 128; i++)
 	{
 		std::stringstream ss;
-
+		escape(ss, (char)i);
 		if(ss.str().size() > 0)
-			EXPECT_GE(escape(ss.str()[0], char(i)), ' ');
+			EXPECT_GE(ss.str()[0], ' ');
 	}
 }
 
