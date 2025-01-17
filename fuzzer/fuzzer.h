@@ -466,15 +466,6 @@ struct fuzzer {
         stdin_stream.close();
         stdin_stream.pipe().close();  // Close stdin to signal end of input
 
-        // Use std::thread and std::promise to implement timeout
-        std::promise<void> exit_signal;
-        std::future<void> exit_future = exit_signal.get_future();
-
-        std::jthread monitor_thread([&]() {
-            process.wait();
-            exit_signal.set_value();
-        });
-
         // Read all content from ipstream after the process finishes
         auto read_stream = [](ipstream& stream) {
             std::ostringstream oss;
@@ -483,7 +474,7 @@ struct fuzzer {
         };
         
         // Wait for process completion with a timeout.
-        bool finished_in_time = exit_future.wait_for(executionInput.timeout) == std::future_status::ready;
+        bool finished_in_time = process.wait_for(executionInput.timeout);
         if (!finished_in_time) {
             process.terminate();  // Kill the process if it times out
             auto duration = std::chrono::duration_cast<std::chrono::duration<double, std::milli>>(std::chrono::high_resolution_clock::now() - start);
