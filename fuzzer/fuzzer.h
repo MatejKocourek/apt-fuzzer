@@ -18,6 +18,7 @@
 #include "median.h"
 #include <utility>
 #include <set>
+#include <charconv>
 
 //#define CAPTURE_STDOUT
 
@@ -1217,7 +1218,9 @@ static std::string loadFile(const std::filesystem::path& path)
 
 struct fuzzer_greybox : public fuzzer
 {
-    double powerSchedule(double time, size_t size, size_t nm, size_t nc, const std::string& hash)
+    typedef std::vector<bool> coveragePath;
+
+    double powerSchedule(double time, size_t size, size_t nm, size_t nc, const coveragePath& hash)
     {
         switch (POWER_SCHEDULE)
         {
@@ -1242,12 +1245,12 @@ struct fuzzer_greybox : public fuzzer
     };
 
     struct seed {
-        seed(std::string&& input, const std::string& h, double T, double e, size_t nm = 1, size_t nc = 1) : input(std::move(input)), h(h), T(T), e(e), nm(nm), nc(nc)
+        seed(std::string&& input, const coveragePath& h, double T, double e, size_t nm = 1, size_t nc = 1) : input(std::move(input)), h(h), T(T), e(e), nm(nm), nc(nc)
         {
 
         }
         const std::string input;
-        const std::string& h; //hash of the output
+        const coveragePath& h; //hash of the output
         double e; //energy
 
         const double T; // execution time
@@ -1285,7 +1288,9 @@ struct fuzzer_greybox : public fuzzer
     }
 
     double bestCoverage = 0;
-    std::unordered_map<std::string, size_t> hashmap;
+
+
+    std::unordered_map<coveragePath, size_t> hashmap;
 
     /// <summary>
     /// Weighted random choice of a seed, where some portion of best seeds will be given 50% choice be selected
@@ -1368,26 +1373,50 @@ struct fuzzer_greybox : public fuzzer
         throw std::runtime_error("Failed to select a weighted random choice.");
     }
 
+    static std::string_view getLine(std::string_view& str, char delimiter='\n')
+    {
+        size_t i = 0;
+        for (; i < str.size(); ++i)
+        {
+            if (str[i] == delimiter)
+                break;
+        }
+        auto res = str.substr(0, i);
+        if (i >= str.size())
+            str = "";
+        else
+            str = str.substr(i + 1);
+        return res;
+    }
+
     /// <summary>
     /// Reads coverage percentage from a input
     /// </summary>
-    static double coverage(const std::string& lcov)
+    static std::pair<double, coveragePath> coverage(const std::string& lcov)
     {
-        size_t covered;
-        size_t total;
+        std::pair<double, coveragePath> res;
+        std::string_view str(lcov);
+        getLine(str);
+        getLine(str);
+        //while (!getLine(str).starts_with("DA:"));
 
-        std::smatch match;
-        if (!std::regex_search(lcov, match, linesHit))
-            throw std::runtime_error("LCOV file not valid");
+        size_t covered = 0;
 
-        covered = std::stoull(match[1]);
+        while (getLine(str, ',').starts_with("DA:"))  // Load line number
+        {
+            std::string_view numStr = getLine(str, '\n');
+            size_t countHit;
+            std::from_chars(numStr.data(), numStr.data() + numStr.size(), countHit);
+            res.second.push_back(countHit > 0);
+            if(countHit > 0)
+                covered++;
+        }
 
-        if (!std::regex_search(lcov, match, linesFound))
-            throw std::runtime_error("LCOV file not valid");
+        size_t total = res.second.size();
 
-        total = std::stoull(match[1]);
+        res.first = static_cast<double>(covered) / total;
 
-        return static_cast<double>(covered) / total;
+        return res;
     }
 
     /// <summary>
@@ -1406,10 +1435,18 @@ struct fuzzer_greybox : public fuzzer
 
         if (error)
         {
-            // Use bug info as a hash
-            std::stringstream ss;
-            error->bugInfo(ss);
-            auto it = hashmap.emplace(ss.str(), 0);
+            coveragePath errorPath;
+
+            if (std::filesystem::exists(COVERAGE_FILE)) //Error occured, but we still got coverage path
+            {
+                auto lcov = loadFile(COVERAGE_FILE);
+                std::filesystem::remove(COVERAGE_FILE);
+
+                errorPath = coverage(lcov).second;
+            }
+            //else use empty path for all errors
+
+            auto it = hashmap.emplace(std::move(errorPath), 0);
             it.first->second++;;
             const auto& executedCoverageOutput = it.first->first;
 
@@ -1423,9 +1460,10 @@ struct fuzzer_greybox : public fuzzer
             auto lcov = loadFile(COVERAGE_FILE);
             std::filesystem::remove(COVERAGE_FILE);
 
-            auto executedCoverage = coverage(lcov);
+            auto executedCoverageRes = coverage(lcov);
+            auto executedCoverage = executedCoverageRes.first;
 
-            auto it = hashmap.emplace(std::move(lcov), 0);
+            auto it = hashmap.emplace(std::move(executedCoverageRes.second), 0);
             it.first->second++;;
             const auto& executedCoverageOutput = it.first->first;
 
@@ -1466,7 +1504,7 @@ struct fuzzer_greybox : public fuzzer
         {
             auto lcov = loadFile(COVERAGE_FILE);
             std::filesystem::remove(COVERAGE_FILE);
-            bestCoverage = coverage(lcov);
+            bestCoverage = coverage(lcov).first;
         }
         std::cerr << "Initial coverage set to " << bestCoverage << std::endl;
 
