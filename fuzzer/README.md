@@ -5,6 +5,7 @@
 
 More mutators:
 - Insert digit - inserts a digit somewhere in the string
+- Insert newline - inserts newline characters somewhere in the string
 - Concatenate - Joins two mutations together
 - Change number - If the mutant is a number, add something to it
 - ASCII versions of flip bit and add - keeps values in valid ASCII ranges
@@ -15,9 +16,13 @@ Handcrafted seeds
 
 Hybrid fuzzing
 - Sometimes the fuzzer chooses to generate a random string as input, instead of mutating an existing seed. If it suceeds, the fuzzer adds it as a new seed. This ensures that there is no regression from blackbox fuzzing.
+- New argument "greyness" to influece the probability of the fuzzer to use random string
 
 Statistics
 - Reporting number of unique hashes currently in use
+
+Cluster the number of hits per line
+- Created own structure how to hash coverage, so that cycles do not influence the results. If a line is visited, it does not matter how many times now.
 
 ## Setup
 

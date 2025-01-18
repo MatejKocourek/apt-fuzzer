@@ -81,6 +81,11 @@ namespace generators {
         std::uniform_int_distribution<int> res(0, 1);
         return (bool)res(gen);
     }
+    float randomFloat()
+    {
+        std::uniform_real_distribution<float> res(0, 1);
+        return res(gen);
+    }
 
 
     static std::string generateRandomInput()
@@ -207,6 +212,17 @@ namespace mutators {
         size_t blockStart = distStart(gen);
 
         input.insert(input.begin() + blockStart, (char)(distChar(gen) + '0'));
+    }
+
+    /// <summary>
+    /// Insert '\n' somewhere random in the string
+    /// </summary>
+    void insertNewline(std::string& input)
+    {
+        std::uniform_int_distribution<size_t> distStart(0, input.size());
+        size_t blockStart = distStart(gen);
+
+        input.insert(input.begin() + blockStart, '\n');
     }
 
     /// <summary>
@@ -1265,10 +1281,6 @@ struct fuzzer_greybox : public fuzzer
 
     std::multiset<seed> queue;
 
-    fuzzer_greybox(std::filesystem::path FUZZED_PROG, std::filesystem::path RESULT_FUZZ, bool MINIMIZE, std::string_view INPUT, std::chrono::seconds TIMEOUT, size_t NB_KNOWN_BUGS, POWER_SCHEDULE_T POWER_SCHEDULE, std::filesystem::path COVERAGE_FILE, std::filesystem::path INPUT_SEEDS) : fuzzer(std::move(FUZZED_PROG), std::move(RESULT_FUZZ), std::move(MINIMIZE), std::move(INPUT), std::move(TIMEOUT), std::move(NB_KNOWN_BUGS)), POWER_SCHEDULE(std::move(POWER_SCHEDULE)), COVERAGE_FILE(std::move(COVERAGE_FILE)), INPUT_SEEDS(std::move(INPUT_SEEDS))
-    {
-
-    }
 
     virtual void exportStatistics(std::ostream& out) override
     {
@@ -1494,6 +1506,8 @@ struct fuzzer_greybox : public fuzzer
         }
     }
 
+    const float howGrey;
+
     virtual void fuzz() override
     {
         // Run for initial seeds without mutating
@@ -1527,7 +1541,7 @@ struct fuzzer_greybox : public fuzzer
         while (keepRunning)
         {
             // Make this a hybrid between greybox and blackbox fuzzing. Sometimes, instead of a mutating existing seed, test random input - if working, add it as seed.
-            bool makeRandomSeed = generators::randomBool();
+            bool makeRandomSeed = generators::randomFloat() < howGrey;
             if (makeRandomSeed)
             {
                 trySeed(nullptr, generators::generateRandomInput());
@@ -1574,7 +1588,12 @@ struct fuzzer_greybox : public fuzzer
 
     }
 
-    fuzzer_greybox(std::filesystem::path FUZZED_PROG, std::filesystem::path RESULT_FUZZ, bool MINIMIZE, std::string_view INPUT, std::chrono::seconds TIMEOUT, size_t NB_KNOWN_BUGS, POWER_SCHEDULE_T POWER_SCHEDULE, std::filesystem::path COVERAGE_FILE) : fuzzer_greybox(std::move(FUZZED_PROG), std::move(RESULT_FUZZ), std::move(MINIMIZE), std::move(INPUT), std::move(TIMEOUT), std::move(NB_KNOWN_BUGS), std::move(POWER_SCHEDULE), std::move(COVERAGE_FILE), "MY_SEED")
+    fuzzer_greybox(std::filesystem::path FUZZED_PROG, std::filesystem::path RESULT_FUZZ, bool MINIMIZE, std::string_view INPUT, std::chrono::seconds TIMEOUT, size_t NB_KNOWN_BUGS, POWER_SCHEDULE_T POWER_SCHEDULE, std::filesystem::path COVERAGE_FILE, float howGrey, std::filesystem::path INPUT_SEEDS) : fuzzer(std::move(FUZZED_PROG), std::move(RESULT_FUZZ), std::move(MINIMIZE), std::move(INPUT), std::move(TIMEOUT), std::move(NB_KNOWN_BUGS)), POWER_SCHEDULE(std::move(POWER_SCHEDULE)), COVERAGE_FILE(std::move(COVERAGE_FILE)), INPUT_SEEDS(std::move(INPUT_SEEDS)), howGrey(std::move(howGrey))
+    {
+
+    }
+
+    fuzzer_greybox(std::filesystem::path FUZZED_PROG, std::filesystem::path RESULT_FUZZ, bool MINIMIZE, std::string_view INPUT, std::chrono::seconds TIMEOUT, size_t NB_KNOWN_BUGS, POWER_SCHEDULE_T POWER_SCHEDULE, std::filesystem::path COVERAGE_FILE, float howGrey) : fuzzer_greybox(std::move(FUZZED_PROG), std::move(RESULT_FUZZ), std::move(MINIMIZE), std::move(INPUT), std::move(TIMEOUT), std::move(NB_KNOWN_BUGS), std::move(POWER_SCHEDULE), std::move(COVERAGE_FILE), std::move(howGrey), "MY_SEED")
     {
         populateWithMySeeds();
     }
