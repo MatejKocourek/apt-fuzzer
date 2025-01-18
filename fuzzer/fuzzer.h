@@ -22,7 +22,11 @@
 
 //#define CAPTURE_STDOUT
 
+#ifdef _MSC_VER
+#define UNREACHABLE __assume(0)
+#else
 #define UNREACHABLE __builtin_unreachable()
+#endif
 
 //thread_local std::random_device rd;  // Seed for the random number engine
 /*thread_local */std::mt19937 gen/*(rd())*/; // Mersenne Twister engine seeded with `rd`
@@ -1465,6 +1469,7 @@ struct fuzzer_greybox : public fuzzer
             //selected.nc++;
 
             //Add new interesting seed (crashing)
+            if(it.second)
             queue.emplace(std::move(mutant), executedCoverageOutput, res.execution_time.count(), powerSchedule(res.execution_time.count(), mutant.size(), 2, 2, executedCoverageOutput), 2, 2);
         }
         else

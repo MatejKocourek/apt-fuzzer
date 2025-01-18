@@ -330,7 +330,7 @@ TEST(Mutators, changeNum) {
 
 TEST(Power, weightedChoiceFavourite) {
 	std::string input = "test";
-	std::string hash = "hash";
+	fuzzer_greybox::coveragePath hash;
 	std::multiset<fuzzer_greybox::seed> options;
 	options.emplace(std::move(input), hash, 1, 1, 1, 1);
 
@@ -342,7 +342,7 @@ TEST(Power, weightedChoiceFavourite) {
 
 TEST(Power, weightedChoiceNormal) {
 	std::string input = "test";
-	std::string hash = "hash";
+	fuzzer_greybox::coveragePath hash;
 	std::multiset<fuzzer_greybox::seed> options;
 	options.emplace(std::move(input), hash, 1, 1, 1, 1);
 
@@ -378,7 +378,7 @@ TEST(Coverage, lcov) {
 		"LF:7\n"
 		"end_of_record\n";
 
-	auto coverage = fuzzer_greybox::coverage(input);
+	auto coverage = fuzzer_greybox::coverage(input).first;
 
 	EXPECT_EQ(coverage, 6.0/7.0);
 }
@@ -388,7 +388,7 @@ protected:
 	std::optional<fuzzer_greybox> fuzz;
 
 	void SetUp() override {
-		fuzz.emplace("/bin/false", "/tmp/fuzzer/", true, "stdin", std::chrono::seconds(60), 1, fuzzer_greybox::POWER_SCHEDULE_T::simple, "coverage.lcov");
+		fuzz.emplace("/bin/false", "/tmp/fuzzer/", true, "stdin", std::chrono::seconds(60), 1, fuzzer_greybox::POWER_SCHEDULE_T::simple, "coverage.lcov", 50);
 	}
 
 	void TearDown() override {
