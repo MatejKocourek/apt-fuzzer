@@ -1480,6 +1480,9 @@ struct fuzzer_greybox : public fuzzer
                 // Run directly on this seed
                 auto input = loadFile(i.path());
 
+                std::cerr << "seed:" << std::endl;
+                std::cerr << input << std::endl;
+
                 trySeed(nullptr, std::move(input), true);
             }
         }
@@ -1538,6 +1541,7 @@ struct fuzzer_greybox : public fuzzer
 
     fuzzer_greybox(std::filesystem::path FUZZED_PROG, std::filesystem::path RESULT_FUZZ, bool MINIMIZE, std::string_view INPUT, std::chrono::seconds TIMEOUT, size_t NB_KNOWN_BUGS, POWER_SCHEDULE_T POWER_SCHEDULE, std::filesystem::path COVERAGE_FILE) : fuzzer_greybox(std::move(FUZZED_PROG), std::move(RESULT_FUZZ), std::move(MINIMIZE), std::move(INPUT), std::move(TIMEOUT), std::move(NB_KNOWN_BUGS), std::move(POWER_SCHEDULE), std::move(COVERAGE_FILE), "MY_SEED")
     {
+        throw;
         populateWithMySeeds();
     }
 
