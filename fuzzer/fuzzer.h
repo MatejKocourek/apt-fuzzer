@@ -304,7 +304,7 @@ namespace mutators {
     /// <param name="input2">Some mutators will use this second string to read from</param>
     void randomMutant(std::string& input1, const std::string& input2)
     {
-        std::uniform_int_distribution<int> mutants(0, 5);
+        std::uniform_int_distribution<int> mutants(0, 9);
         switch (mutants(gen))
         {
         case 0:
@@ -312,13 +312,17 @@ namespace mutators {
         case 1:
             return insertBlock(input1);
         case 2:
-            return flipBitASCII(input1);
+            return changeNum(input1);
         case 3:
-            return addASCII(input1);
+            return insertNewline(input1);
         case 4:
             return insertDigit(input1);
         case 5:
-            return concat(input1, input2);
+        case 6:
+        case 7:
+        case 8:
+        case 9:
+            return concat(input1, input2); //Give more probability
 
         default:
             UNREACHABLE;
@@ -335,7 +339,7 @@ namespace mutators {
     {
         std::string res = input1;
 
-        std::exponential_distribution<double> distVal(0.5);
+        std::exponential_distribution<double> distVal(1);
 
         for (size_t i = 1 + round(distVal(gen)); i != 0; i--)
             randomMutant(res, input2);
@@ -1427,7 +1431,7 @@ struct fuzzer_greybox : public fuzzer
             if(countHit > 0)
                 covered++;
         }
-
+        
         size_t total = res.second.size();
 
         res.first = static_cast<double>(covered) / total;
@@ -1470,7 +1474,7 @@ struct fuzzer_greybox : public fuzzer
 
             //Add new interesting seed (crashing)
             if(it.second)
-            queue.emplace(std::move(mutant), executedCoverageOutput, res.execution_time.count(), powerSchedule(res.execution_time.count(), mutant.size(), 2, 2, executedCoverageOutput), 2, 2);
+                queue.emplace(std::move(mutant), executedCoverageOutput, res.execution_time.count(), powerSchedule(res.execution_time.count(), mutant.size(), 2, 2, executedCoverageOutput), 2, 2);
         }
         else
         {
