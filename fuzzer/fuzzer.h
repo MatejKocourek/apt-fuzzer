@@ -1469,11 +1469,12 @@ struct fuzzer_greybox : public fuzzer
             auto it = hashmap.emplace(std::move(errorPath), 0);
             it.first->second++;;
             const auto& executedCoverageOutput = it.first->first;
+            bool foundNewPath = it.second;
 
             //selected.nc++;
 
             //Add new interesting seed (crashing)
-            if(it.second)
+            if(foundNewPath)
                 queue.emplace(std::move(mutant), executedCoverageOutput, res.execution_time.count(), powerSchedule(res.execution_time.count(), mutant.size(), 2, 2, executedCoverageOutput), 2, 2);
         }
         else
@@ -1487,8 +1488,9 @@ struct fuzzer_greybox : public fuzzer
             auto it = hashmap.emplace(std::move(executedCoverageRes.second), 0);
             it.first->second++;;
             const auto& executedCoverageOutput = it.first->first;
+            bool foundNewPath = it.second;
 
-            if ((executedCoverage > bestCoverage) || (selected && executedCoverage == bestCoverage && executedCoverageOutput != selected->h))
+            if (foundNewPath || (selected && executedCoverage == bestCoverage && executedCoverageOutput != selected->h))
             {
                 if (selected)
                     selected->nc++;
@@ -1499,7 +1501,7 @@ struct fuzzer_greybox : public fuzzer
                     bestCoverage = executedCoverage;
                 }
 
-                //Add new interesting seed (higher coverage)
+                //Add new interesting seed (new or different path)
                 queue.emplace(std::move(mutant), executedCoverageOutput, res.execution_time.count(), powerSchedule(res.execution_time.count(), mutant.size(), 2, 2, executedCoverageOutput), 2, 2);
             }
            else if(alwaysInsert)
