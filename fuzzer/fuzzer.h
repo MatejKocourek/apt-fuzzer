@@ -145,19 +145,12 @@ std::ostream& escapeHex(std::ostream& out, char c)
 /// <returns>Output stream from argument</returns>
 std::ostream& escape(std::ostream& out, char c)
 {
-    if (static_cast<unsigned char>(c) > 126 || (c < 32 && c > 13))
+    unsigned char uchar = static_cast<unsigned char>(c);
+    if (uchar > 126 || uchar < 8 || (uchar < 32 && uchar > 13))
         return escapeHex(out, c);
 
     switch (c)
     {
-    case '\0':
-    case 1:
-    case 2:
-    case 3:
-    case 4:
-    case 5:
-    case 6:
-    case '\a':
     case '\v':
         escapeHex(out, c);
         break;
@@ -1271,17 +1264,21 @@ static const std::regex regexFilename("SF:(.+)");
 
 static std::string loadFile(const std::filesystem::path& path)
 {
-    auto file = std::ifstream(path);
+    auto file = std::ifstream(path, std::ios::in |std::ios::binary);
 
     if (!file.is_open()) [[unlikely]]
         throw std::runtime_error("Cannot open file: " + path.string());
 
-    std::string sourcecode = std::string(std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>());
+    std::string res;
+    file.seekg(0, std::ios::end);
+    res.resize(file.tellg());
+    file.seekg(0, std::ios::beg);
+    file.read(&res[0], res.size());
 
-    if (file.fail()) [[unlikely]]
+    if (file.fail())// [[unlikely]]
         throw std::runtime_error("Error reading file: " + path.string());
 
-    return sourcecode;
+    return res;
 }
 
 struct fuzzer_greybox : public fuzzer
@@ -1766,7 +1763,18 @@ struct fuzzer_greybox : public fuzzer
                 // Run directly on this seed
                 auto input = loadFile(i.path());
 
+                // Check if input does not contain control characters (we don't support those)
+                for (const auto& c : input)
+                {
+                    unsigned char uchar = static_cast<unsigned char>(c);
+                    if (uchar > 126 || uchar < 8 || uchar == 11 || (uchar < 32 && uchar > 13))
+                        goto containsEscapes;
+                }
+
                 trySeed<true>(nullptr, std::move(input));
+
+            containsEscapes:
+                while (0);
             }
         }
         std::cerr << "Loaded " << queue->size() << " seeds." << std::endl;
