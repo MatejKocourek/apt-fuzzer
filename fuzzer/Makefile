@@ -11,10 +11,10 @@ TASK4_DIR = $(PROJECT_DIR)/seed-generator
 BUILD_DIR = $(TASK2_DIR)/build
 BUILD_DIR_TEST = $(TASK2_DIR)/build/test
 
-#INPUT_SEEDS ?= $(PROJECT_DIR)/fuzzer/seeds/
+CRAFTED_SEEDS = $(PROJECT_DIR)/fuzzer/seeds/
 SEED_DIR = $(TASK2_DIR)/build/my-seeds
 
-POWER_SCHEDULE ?= simple
+POWER_SCHEDULE ?= boosted
 
 
 # The 'build' target builds the program using CMake
@@ -38,19 +38,24 @@ blackbox: build
 	@echo "Running blacbox fuzzer on $(FUZZED_PROG) and placing results to $(RESULT_FUZZ)"
 	@cd $(BUILD_DIR) && ./fuzzer $(FUZZED_PROG) $(RESULT_FUZZ) $(MINIMIZE) $(INPUT) $(TIMEOUT) $(NB_KNOWN_BUGS)
 
-greybox: build
+prepare-coverage:
 	@echo "Running code coverage tool on files in $(FUZZED_PROG)/*.c"
 	@cd $(FUZZED_PROG) && $(BUILD_DIR)/../../code-coverage/build/code-coverage *.c
 	@cd $(FUZZED_PROG) && $(CC) *_instrumented_main.c -fsanitize=address -g -O0 -lm -o instr_prog
 	@rm $(FUZZED_PROG)/*_instrumented_main.c
+
+greybox: build
+	@$(MAKE) prepare-coverage
 	@echo "Running greybox fuzzer on $(FUZZED_PROG) and placing results to $(RESULT_FUZZ)"
+	@INPUT_SEEDS ?= CRAFTED_SEEDS
 	@cd $(FUZZED_PROG) && $(BUILD_DIR)/fuzzer instr_prog $(RESULT_FUZZ) $(MINIMIZE) $(INPUT) $(TIMEOUT) $(NB_KNOWN_BUGS) $(POWER_SCHEDULE) coverage.lcov 50 25 $(INPUT_SEEDS)
 	@rm $(FUZZED_PROG)/instr_prog
 
 greybox-smarter: build
-	@echo "Running a smarter version of greybox with analysis of the source code"
+	@echo "Running a smarter version of greybox fuzzer with analysis of the source code"
 	@$(MAKE) prepare-seeds
-	@$(MAKE) greybox
+	@$(MAKE) prepare-coverage
+	@cd $(FUZZED_PROG) && $(BUILD_DIR)/fuzzer instr_prog $(RESULT_FUZZ) $(MINIMIZE) $(INPUT) $(TIMEOUT) $(NB_KNOWN_BUGS) $(POWER_SCHEDULE) coverage.lcov 10 50 $(SEED_DIR)
 	@rm -fr $(SEED_DIR)
 
 prepare-seeds:

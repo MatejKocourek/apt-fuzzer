@@ -79,13 +79,14 @@ int main(int argc, char* argv[])
         return 1;
     }
 #endif
+    size_t currentArg = 1;
 
-    std::filesystem::path FUZZED_PROG = argv[1];
-    std::filesystem::path RESULT_FUZZ = argv[2];
-    bool MINIMIZE = std::atoi(argv[3]) != 0;
-    std::string_view fuzzInputType = argv[4];
-    std::chrono::seconds TIMEOUT = std::chrono::seconds(std::atoi(argv[5]));
-    size_t NB_KNOWN_BUGS = std::atoi(argv[6]);
+    std::filesystem::path FUZZED_PROG = argv[currentArg++];
+    std::filesystem::path RESULT_FUZZ = argv[currentArg++];
+    bool MINIMIZE = std::atoi(argv[currentArg++]) != 0;
+    std::string_view fuzzInputType = argv[currentArg++];
+    std::chrono::seconds TIMEOUT = std::chrono::seconds(std::atoi(argv[currentArg++]));
+    size_t NB_KNOWN_BUGS = std::atoi(argv[currentArg++]);
 
     std::cerr << "Fuzzing program " << FUZZED_PROG << ", placing results into folder " << RESULT_FUZZ << ", minimize=" << MINIMIZE << ", type=" << fuzzInputType << ", timeout=" << TIMEOUT.count() << ", known_bugs=" << NB_KNOWN_BUGS << std::endl;
 
@@ -95,7 +96,7 @@ int main(int argc, char* argv[])
     try
     {
 
-        if (argc <= 7)
+        if (argc <= currentArg)
         {
             //BLACKBOX
 
@@ -110,20 +111,20 @@ int main(int argc, char* argv[])
             // GREYBOX
             std::cerr << "Greybox" << std::endl;
 
-            std::string_view POWER_SCHEDULE = argv[7];
+            std::string_view POWER_SCHEDULE = argv[currentArg++];
             fuzzer_greybox::POWER_SCHEDULE_T schedule = POWER_SCHEDULE == "simple" ? fuzzer_greybox::POWER_SCHEDULE_T::simple : fuzzer_greybox::POWER_SCHEDULE_T::boosted;
             std::cerr << "schedule=" << POWER_SCHEDULE << "=" << (int)schedule << ", ";
 
-            std::filesystem::path COVERAGE_FILE = argv[8];
+            std::filesystem::path COVERAGE_FILE = argv[currentArg++];
             std::cerr << "COVERAGE_FILE=" << COVERAGE_FILE << std::endl;
 
-            float GREYNESS = std::atoi(argv[9]) / 100.0f;
+            float GREYNESS = std::atoi(argv[currentArg++]) / 100.0f;
             std::cerr << "GREYNESS=" << GREYNESS << std::endl;
 
-            float CONCATENATEDNESS = std::atoi(argv[10]) / 100.0f;
+            float CONCATENATEDNESS = std::atoi(argv[currentArg++]) / 100.0f;
             std::cerr << "CONCATENATEDNESS=" << CONCATENATEDNESS << std::endl;
 
-            if (argc <= 11)
+            if (argc <= currentArg)
             {
                 std::cerr << "Seed directory not provided" << std::endl;
                 fuzzer_greybox greybox(std::move(FUZZED_PROG), std::move(RESULT_FUZZ), std::move(MINIMIZE), std::move(fuzzInputType), std::move(TIMEOUT), std::move(NB_KNOWN_BUGS), schedule, std::move(COVERAGE_FILE), GREYNESS, CONCATENATEDNESS);
@@ -132,7 +133,7 @@ int main(int argc, char* argv[])
             }
             else
             {
-                std::filesystem::path INPUT_SEEDS = argv[10];
+                std::filesystem::path INPUT_SEEDS = argv[currentArg++];
                 std::cerr << "Seed directory provided: " << INPUT_SEEDS << std::endl;
                 fuzzer_greybox greybox(std::move(FUZZED_PROG), std::move(RESULT_FUZZ), std::move(MINIMIZE), std::move(fuzzInputType), std::move(TIMEOUT), std::move(NB_KNOWN_BUGS), schedule, std::move(COVERAGE_FILE), GREYNESS, CONCATENATEDNESS, std::move(INPUT_SEEDS));
                 myFuzzer = &greybox;
