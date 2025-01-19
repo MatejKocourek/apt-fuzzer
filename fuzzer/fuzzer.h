@@ -19,6 +19,7 @@
 #include <utility>
 #include <set>
 #include <charconv>
+#include <iterator>
 
 //#define CAPTURE_STDOUT
 
@@ -90,7 +91,21 @@ namespace generators {
         std::uniform_real_distribution<float> res(0, 1);
         return res(gen);
     }
-
+    int randomInt(int max)
+    {
+        std::uniform_int_distribution<int> res(0, max-1);
+        return res(gen);
+    }
+    char randomASCII()
+    {
+        std::uniform_int_distribution<int> res(32, 126);
+        return res(gen);
+    }
+    char randomDigit()
+    {
+        std::uniform_int_distribution<int> res('0', '9');
+        return res(gen);
+    }
 
     static std::string generateRandomInput()
     {
@@ -113,6 +128,15 @@ namespace generators {
     }
 }
 
+std::ostream& escapeHex(std::ostream& out, char c)
+{
+    out << "\\u00"
+        << std::hex << std::uppercase // Use uppercase for letters in hex
+        << std::setw(2) << std::setfill('0') // Ensures 2-digit output
+        << static_cast<int>(static_cast<unsigned char>(c));
+    return out;
+}
+
 /// <summary>
 /// Escape a char to JSON format
 /// </summary>
@@ -121,24 +145,42 @@ namespace generators {
 /// <returns>Output stream from argument</returns>
 std::ostream& escape(std::ostream& out, char c)
 {
-    if (c < 32)
-        return out;//hack
+    if (c > 126 || (c < 32 && c > 13))
+        return escapeHex(out, c);
+
     switch (c)
     {
-    case '\u007F':
-        out << "\\u007F";
+    case '\0':
+        out << "\\0";
+        break;
+    case 1:
+    case 2:
+    case 3:
+    case 4:
+    case 5:
+    case 6:
+        escapeHex(out, c);
+        break;
+    case '\a':
+        out << "\\a";
         break;
     case '\b':
         out << "\\b";
         break;
-    case '\f':
-        out << "\\f";
+    case '\t':
+        out << "\\t";
         break;
     case '\n':
         out << "\\n";
         break;
-    case '\t':
-        out << "\\t";
+    case '\v':
+        out << "\\v";
+        break;
+    case '\f':
+        out << "\\f";
+        break;
+    case '\r':
+        out << "\\r";
         break;
     case '\\':
     case '"':
@@ -230,6 +272,14 @@ namespace mutators {
     }
 
     /// <summary>
+    /// Insert '\n' at the end of the string
+    /// </summary>
+    void appendNewline(std::string& input)
+    {
+        input += '\n';
+    }
+
+    /// <summary>
     /// Join two strings together
     /// </summary>
     /// <param name="input">First string, will increase in size</param>
@@ -237,6 +287,17 @@ namespace mutators {
     void concat(std::string& input, const std::string& input2)
     {
         input.reserve(input.size() + input2.size());
+        input += input2;
+    }
+    /// <summary>
+    /// Join two strings together with newline in between
+    /// </summary>
+    /// <param name="input">First string, will increase in size</param>
+    /// <param name="input2">Second string, will be added to the first one</param>
+    void concatWithNewl(std::string& input, const std::string& input2)
+    {
+        input.reserve(input.size() + input2.size() + 1);
+        input += '\n';
         input += input2;
     }
     /// <summary>
@@ -251,7 +312,7 @@ namespace mutators {
         }
         auto num = std::stoll(input);
 
-        std::exponential_distribution<double> distLen(0.5);
+        std::exponential_distribution<double> distLen(2.0);
 
         std::uniform_int_distribution<int> negative(0, 1);
 
@@ -302,28 +363,23 @@ namespace mutators {
     /// </summary>
     /// <param name="input1">Mutation will be applied to this string</param>
     /// <param name="input2">Some mutators will use this second string to read from</param>
-    void randomMutant(std::string& input1, const std::string& input2)
+    void randomMutant(std::string& input)
     {
-        std::uniform_int_distribution<int> mutants(0, 9);
+        std::uniform_int_distribution<int> mutants(0, 5);
         switch (mutants(gen))
         {
         case 0:
-            return deleteBlock(input1);
+            return deleteBlock(input);
         case 1:
-            return insertBlock(input1);
+            return insertBlock(input);
         case 2:
-            return changeNum(input1);
+            return changeNum(input);
         case 3:
-            return insertNewline(input1);
+            return insertDigit(input);
         case 4:
-            return insertDigit(input1);
+            return addASCII(input);
         case 5:
-        case 6:
-        case 7:
-        case 8:
-        case 9:
-            return concat(input1, input2); //Give more probability
-
+            return flipBitASCII(input);
         default:
             UNREACHABLE;
         }
@@ -333,18 +389,12 @@ namespace mutators {
     /// Perform several random mutations
     /// </summary>
     /// <param name="input1">String to mutate</param>
-    /// <param name="input2">Some mutators will use this second string to read from</param>
-    /// <returns>Mutated string</returns>
-    std::string randomNumberOfRandomMutants(const std::string& input1, const std::string& input2)
+    void randomNumberOfRandomMutants(std::string& input)
     {
-        std::string res = input1;
-
         std::exponential_distribution<double> distVal(1);
 
-        for (size_t i = 1 + round(distVal(gen)); i != 0; i--)
-            randomMutant(res, input2);
-
-        return res;
+        for (size_t i = 1 + distVal(gen); i != 0; i--)
+            randomMutant(input);
     }
 }
 
@@ -1244,18 +1294,6 @@ struct fuzzer_greybox : public fuzzer
 {
     typedef std::vector<bool> coveragePath;
 
-    double powerSchedule(double time, size_t size, size_t nm, size_t nc, const coveragePath& hash)
-    {
-        switch (POWER_SCHEDULE)
-        {
-        case POWER_SCHEDULE_T::simple:
-            return 1.0 / (time * size * nm / nc);
-        case POWER_SCHEDULE_T::boosted:
-            return 1.0 / std::pow(hashmap.at(hash), 5);
-        default:
-            UNREACHABLE;
-        }
-    }
 
     virtual size_t asanOffset() const override
     {
@@ -1268,35 +1306,310 @@ struct fuzzer_greybox : public fuzzer
         boosted
     };
 
-    struct seed {
-        seed(std::string&& input, const coveragePath& h, double T, double e, size_t nm = 1, size_t nc = 1) : input(std::move(input)), h(h), T(T), e(e), nm(nm), nc(nc)
-        {
-
-        }
+    struct seed
+    {
+        seed(std::string&& input) : input(std::move(input)) {};
         const std::string input;
-        const coveragePath& h; //hash of the output
+
+        virtual void incrementSelected() = 0;
+        virtual void incrementImproved() = 0;
+        virtual void update() = 0;
+        virtual ~seed() = default;
+    };
+
+    struct seedSimple : public seed
+    {
         double e; //energy
 
         const double T; // execution time
         size_t nm; // how many times it was already selected to be mutated
         size_t nc; // how many times it led to an increase in coverage
 
-        bool operator< (const seed& other) const
+        seedSimple(std::string&& input, double T, size_t nm = 1, size_t nc = 1) : seed(std::move(input)), T(T), nm(nm), nc(nc)
+        {
+            e = power();
+        }
+
+        bool operator< (const seedSimple& other) const
         {
             return e > other.e;
         }
+
+        double power() const
+        {
+            return 1.0 / (T * input.size() * nm / nc);
+        }
+
+        virtual void incrementSelected() override final
+        {
+            nm++;
+        }
+        virtual void incrementImproved() override final
+        {
+            nc++;
+        }
+        virtual void update() override final
+        {
+            e = power();
+        }
+        virtual ~seedSimple() = default;
     };
 
-    std::multiset<seed> queue;
+    struct seedBoosted : public seed
+    {
+        const coveragePath& h; //hash of the output
 
+        seedBoosted(std::string&& input, const coveragePath& h) : seed(std::move(input)), h(h)
+        {
+        }
+
+        double power(const std::unordered_map<coveragePath, size_t>& hashmap) const
+        {
+            return 1.0 / std::pow(hashmap.at(h), 5);
+        }
+
+        virtual void incrementSelected() override final
+        {
+        }
+
+        virtual void incrementImproved() override final
+        {
+        }
+
+        virtual void update() override final
+        {
+        }
+        virtual ~seedBoosted() = default;
+    };
+
+    struct powerStructure
+    {
+        virtual void add(std::string&& input, const coveragePath& h, double T, size_t nm = 1, size_t nc = 1) = 0;
+        virtual size_t size() const = 0;
+        virtual const seed& at(size_t n) = 0;
+        //virtual const seed& weightedRandomChoice() const = 0;
+        virtual seed& weightedRandomChoiceBorrow() = 0;
+        virtual void weightedRandomChoiceReturn() = 0;
+        virtual ~powerStructure() = default;
+
+        std::unordered_map<coveragePath, size_t> hashmap;
+    };
+
+    struct powerSimple : public powerStructure
+    {
+        void add(std::string&& input, double T, size_t nm = 1, size_t nc = 1)
+        {
+            queue.emplace(std::move(input), T, nm, nc);
+        }
+        virtual void add(std::string&& input, const coveragePath& h, double T, size_t nm = 1, size_t nc = 1) override
+        {
+            add(std::move(input), T, nm, nc);
+        }
+        virtual size_t size() const override
+        {
+            return queue.size();
+        }
+        virtual const seed& at(size_t n) override
+        {
+            auto it = queue.cbegin();
+            std::advance(it, n);
+            return *it;
+        }
+
+        std::pair<std::multiset<seedSimple>::node_type, std::multiset<seedSimple>::const_iterator> borrowed;
+
+        virtual seed& weightedRandomChoiceBorrow() override
+        {
+            if (!borrowed.first.empty())// [[unlikely]]
+                throw std::runtime_error("Attempted to borrow another seed without returning previous one!");
+
+            borrowed = weightedRandomChoiceExtract();
+            return borrowed.first.value();
+        }
+        virtual void weightedRandomChoiceReturn() override
+        {
+            queue.insert(borrowed.second,std::move(borrowed.first));
+        }
+        virtual ~powerSimple() = default;
+
+        /// <summary>
+        /// Weighted random choice of a seed, where some portion of best seeds will be given 50% choice be selected
+        /// </summary>
+        /// <typeparam name="extract">Whether the function should remove the seed from the queue</typeparam>
+        /// <param name="options">Queue to select from</param>
+        /// <param name="percent">How many seeds will be given priority</param>
+        /// <returns>Selected seed, extracted or copied</returns>
+        std::pair<std::multiset<seedSimple>::node_type, std::multiset<seedSimple>::const_iterator> weightedRandomChoiceExtract()
+        {
+            // Calculate the total weight
+
+            double totalWeight = 1;
+
+            const size_t firstTenPercent = queue.size() * 0.1f;
+            const double coefficientGood = 0.5 / firstTenPercent;
+            const double coefficientWorse = 0.5 / (queue.size() - firstTenPercent);
+
+            std::uniform_real_distribution<> dis(0.0, totalWeight); // Range [0, totalWeight)
+
+            // Generate a random number
+            double randomValue = dis(gen);
+
+            // Find the chosen option based on the random value
+            double cumulativeWeight = 0.0;
+
+            size_t i = 0;
+            for (auto it = queue.cbegin(); it != queue.cend(); it++) {
+                if (i <= firstTenPercent)
+                    cumulativeWeight += coefficientGood;// cumulativeWeight += it->e * coefficientGood; // Better score
+                else
+                    cumulativeWeight += coefficientWorse;// cumulativeWeight += it->e * coefficientWorse; // Worse score
+
+                if (randomValue <= cumulativeWeight) {
+                    auto nextIt = it++;
+                    return { queue.extract(it), std::move(nextIt) };
+                }
+                i++;
+            }
+
+            // If we get here, there was an issue (e.g., no options, weights not positive)
+            throw std::runtime_error("Failed to select a weighted random choice.");
+        }
+
+        std::multiset<seedSimple> queue;
+    };
+    struct powerBoosted : public powerStructure
+    {
+        bool isBorrowed = false;
+
+        void add(std::string&& input, const coveragePath& h)
+        {
+            if(isBorrowed) [[unlikely]]
+                throw std::logic_error("Cannot add to queue with borrowed element");
+            queue.emplace_back(std::move(input), h);
+        }
+        virtual void add(std::string&& input, const coveragePath& h, double T, size_t nm = 1, size_t nc = 1) override
+        {
+            add(std::move(input), h);
+        }
+        virtual size_t size() const override
+        {
+            return queue.size();
+        }
+
+        virtual const seed& at(size_t n) override
+        {
+            return queue.at(n);
+        }
+
+        virtual seed& weightedRandomChoiceBorrow() override
+        {
+            isBorrowed = true;
+            return weightedRandomChoice();
+        }
+
+        virtual void weightedRandomChoiceReturn() override
+        {
+            isBorrowed = false;
+        }
+        virtual ~powerBoosted() = default;
+
+        /// <summary>
+        /// Weighted random choice of a seed
+        /// </summary>
+        /// <typeparam name="extract">Whether the function should remove the seed from the queue</typeparam>
+        /// <param name="options">Queue to select from</param>
+        /// <returns>Selected seed, extracted or copied</returns>
+        virtual seed& weightedRandomChoice()
+        {
+            // Calculate the total weight
+            double totalWeight = 0.0;
+            for (const auto& option : queue)
+                totalWeight += option.power(hashmap);
+
+            std::uniform_real_distribution<> dis(0.0, totalWeight); // Range [0, totalWeight)
+
+            // Generate a random number
+            double randomValue = dis(gen);
+
+            // Find the chosen option based on the random value
+            double cumulativeWeight = 0.0;
+
+            for (auto& i : queue)
+            {
+                cumulativeWeight += i.power(hashmap);
+                if (randomValue <= cumulativeWeight)
+                    return i;
+            }
+
+            // If we get here, there was an issue (e.g., no options, weights not positive)
+            throw std::runtime_error("Failed to select a weighted random choice.");
+        }
+
+        std::vector<seedBoosted> queue;
+    };
+
+    void createMashups(std::string& input)
+    {
+        std::exponential_distribution<double> distVal(0.5);
+        size_t mashups = 1 + distVal(gen);
+        for (size_t i = 0; i < mashups; i++)
+        {
+            switch (generators::randomInt(6))
+            {
+            case 0:
+                input += '\n';
+                break;
+            case 1:
+                input += generators::randomDigit();
+                break;
+            case 2:
+                input += generators::randomASCII();
+                break;
+            case 3:
+            case 4:
+            case 5:
+            {
+                input += queue->at(generators::randomInt(queue->size())).input;
+            } break;
+
+            default:
+                UNREACHABLE;
+            }
+        }
+    }
+
+    std::string randomNumberOfRandomMutants(std::string input)
+    {
+        if (generators::randomFloat() < 0.5)
+        {
+            createMashups(input);
+            //std::exponential_distribution<double> distVal(1);
+            //size_t numToJoin = 1 + distVal(gen);
+
+            //for (size_t i = 0; i < numToJoin; i++)
+            //{
+            //    auto it = queue.cbegin();
+            //    std::advance(it, generators::randomInt(queue.size()));
+
+            //    if (generators::randomFloat() < 0.5)
+            //        mutators::concatWithNewl(input, it->input);
+            //    else
+            //        mutators::concat(input, it->input);
+            //}
+        }
+        else
+            mutators::randomNumberOfRandomMutants(input);
+
+        return input;
+    }
 
     virtual void exportStatistics(std::ostream& out) override
     {
         out << '{';
         exportStatisticsCommon(out);
-        out << ",\"nb_queued_seed\":" << queue.size() << ",";
+        out << ",\"nb_queued_seed\":" << queue->size() << ",";
         out << "\"coverage\":" << bestCoverage * 100 << ",";
-        out << "\"nb_unique_hash\":" << hashmap.size();
+        out << "\"nb_unique_hash\":" << queue->hashmap.size();
         out << '}';
     }
     virtual void exportReport(const CrashReport& report, std::ostream& out) const override
@@ -1310,88 +1623,6 @@ struct fuzzer_greybox : public fuzzer
     double bestCoverage = 0;
 
 
-    std::unordered_map<coveragePath, size_t> hashmap;
-
-    /// <summary>
-    /// Weighted random choice of a seed, where some portion of best seeds will be given 50% choice be selected
-    /// </summary>
-    /// <typeparam name="extract">Whether the function should remove the seed from the queue</typeparam>
-    /// <param name="options">Queue to select from</param>
-    /// <param name="percent">How many seeds will be given priority</param>
-    /// <returns>Selected seed, extracted or copied</returns>
-    template <bool extract>
-    static seed weightedRandomChoiceFavourite(std::multiset<seed>& options, float percent) {
-        // Calculate the total weight
-
-        double totalWeight = 1;
-
-        const size_t firstTenPercent = options.size() * percent;
-        const double coefficientGood = 0.5 / firstTenPercent;
-        const double coefficientWorse = 0.5 / (options.size() - firstTenPercent);
-
-        std::uniform_real_distribution<> dis(0.0, totalWeight); // Range [0, totalWeight)
-
-        // Generate a random number
-        double randomValue = dis(gen);
-
-        // Find the chosen option based on the random value
-        double cumulativeWeight = 0.0;
-
-        size_t i = 0;
-        for (auto it = options.begin(); it != options.end(); it++) {
-            if (i <= firstTenPercent)
-                cumulativeWeight += coefficientGood;// cumulativeWeight += it->e * coefficientGood; // Better score
-            else
-                cumulativeWeight += coefficientWorse;// cumulativeWeight += it->e * coefficientWorse; // Worse score
-
-            if (randomValue <= cumulativeWeight) {
-                if constexpr (extract)
-                    return std::move(options.extract(it).value());
-                else
-                    return *it;
-            }
-            i++;
-        }
-
-        // If we get here, there was an issue (e.g., no options, weights not positive)
-        throw std::runtime_error("Failed to select a weighted random choice.");
-    }
-
-    /// <summary>
-    /// Weighted random choice of a seed
-    /// </summary>
-    /// <typeparam name="extract">Whether the function should remove the seed from the queue</typeparam>
-    /// <param name="options">Queue to select from</param>
-    /// <returns>Selected seed, extracted or copied</returns>
-    template <bool extract>
-    static seed weightedRandomChoiceNormal(std::multiset<seed>& options) {
-        // Calculate the total weight
-        double totalWeight = 0.0;
-        for (const auto& option : options)
-            totalWeight += option.e;
-
-        std::uniform_real_distribution<> dis(0.0, totalWeight); // Range [0, totalWeight)
-
-        // Generate a random number
-        double randomValue = dis(gen);
-
-        // Find the chosen option based on the random value
-        double cumulativeWeight = 0.0;
-
-        for (auto it = options.begin(); it != options.end(); it++) {
-            cumulativeWeight += it->e;
-
-            if (randomValue <= cumulativeWeight) {
-                if constexpr (extract)
-                    return std::move(options.extract(it).value());
-                else
-                    return *it;
-            }
-        }
-
-        // If we get here, there was an issue (e.g., no options, weights not positive)
-        throw std::runtime_error("Failed to select a weighted random choice.");
-    }
 
     static std::string_view getLine(std::string_view& str, char delimiter='\n')
     {
@@ -1444,8 +1675,9 @@ struct fuzzer_greybox : public fuzzer
     /// </summary>
     /// <param name="selected">Seed that the mutant was taken from, nullptr if no parent</param>
     /// <param name="mutant">Mutant to run on</param>
-    /// <param name="alwaysInsert">Always insert in the queue, even if no improvement occurs</param>
-    void trySeed(seed * selected, std::string mutant, bool alwaysInsert = false)
+    /// <typeparam name="alwaysInsert">Always insert in the queue, even if no improvement occurs</param>
+    template <bool alwaysInsert = false>
+    void trySeed(seed * selected, std::string mutant)
     {
         executionInput->setInput(mutant);
 
@@ -1455,69 +1687,66 @@ struct fuzzer_greybox : public fuzzer
 
         if (error)
         {
-            coveragePath errorPath;
-
+            coveragePath executedCoverage;
             if (std::filesystem::exists(COVERAGE_FILE)) //Error occured, but we still got coverage path
             {
                 auto lcov = loadFile(COVERAGE_FILE);
                 std::filesystem::remove(COVERAGE_FILE);
 
-                errorPath = coverage(lcov).second;
+                executedCoverage = coverage(lcov).second;
             }
             //else use empty path for all errors
-
-            auto it = hashmap.emplace(std::move(errorPath), 0);
+            auto it = queue->hashmap.emplace(std::move(executedCoverage), 0);
             it.first->second++;;
             const auto& executedCoverageOutput = it.first->first;
             bool foundNewPath = it.second;
-
-            //selected.nc++;
-
+            if (selected && foundNewPath)
+                selected->incrementImproved();
+            if (selected != nullptr)
+            {
+                // Update and return the original seed back to the queue
+                selected->update();
+                queue->weightedRandomChoiceReturn();
+            }
             //Add new interesting seed (crashing)
-            if(foundNewPath)
-                queue.emplace(std::move(mutant), executedCoverageOutput, res.execution_time.count(), powerSchedule(res.execution_time.count(), mutant.size(), 2, 2, executedCoverageOutput), 2, 2);
+            if(alwaysInsert || foundNewPath)
+                queue->add(std::move(mutant), executedCoverageOutput, res.execution_time.count(), 2, 2);
         }
         else
         {
             auto lcov = loadFile(COVERAGE_FILE);
             std::filesystem::remove(COVERAGE_FILE);
-
             auto executedCoverageRes = coverage(lcov);
             auto executedCoverage = executedCoverageRes.first;
-
-            auto it = hashmap.emplace(std::move(executedCoverageRes.second), 0);
+            auto it = queue->hashmap.emplace(std::move(executedCoverageRes.second), 0);
             it.first->second++;;
             const auto& executedCoverageOutput = it.first->first;
             bool foundNewPath = it.second;
-
-            if (foundNewPath || (selected && executedCoverage == bestCoverage && executedCoverageOutput != selected->h))
+            size_t ncInitial = 1;
+            if (selected && foundNewPath)
             {
-                if (selected)
-                    selected->nc++;
-
-                if (executedCoverage > bestCoverage)
-                {
-                    std::cerr << "Just improved coverage! From " << bestCoverage << " to " << executedCoverage << ". nb_runs=" << statisticsExecution.count() << std::endl;
-                    bestCoverage = executedCoverage;
-                }
-
-                //Add new interesting seed (new or different path)
-                queue.emplace(std::move(mutant), executedCoverageOutput, res.execution_time.count(), powerSchedule(res.execution_time.count(), mutant.size(), 2, 2, executedCoverageOutput), 2, 2);
+                selected->incrementImproved();
+                ncInitial++;
             }
-           else if(alwaysInsert)
-                queue.emplace(std::move(mutant), executedCoverageOutput, res.execution_time.count(), powerSchedule(res.execution_time.count(), mutant.size(), 2, 1, executedCoverageOutput), 2, 1);
-        }
+            if (selected != nullptr)
+            {
+                // Update and return the original seed back to the queue
+                selected->update();
+                queue->weightedRandomChoiceReturn();
+            }
+            //Add new interesting seed (new or different path)
+            if (alwaysInsert || foundNewPath)
+                queue->add(std::move(mutant), executedCoverageOutput, res.execution_time.count(), 2, 1);
 
-        if (selected)
-        {
-            selected->e = powerSchedule(selected->T, selected->input.size(), selected->nm, selected->nc, selected->h);
-
-            // Return original seed back
-            queue.insert(std::move(*selected));
+            if (executedCoverage > bestCoverage)
+            {
+                std::cerr << "Just improved coverage! From " << bestCoverage << " to " << executedCoverage << ". nb_runs=" << statisticsExecution.count() << std::endl;
+                bestCoverage = executedCoverage;
+            }
         }
     }
 
-    const float howGrey;
+    const float greyness;
 
     virtual void fuzz() override
     {
@@ -1543,41 +1772,24 @@ struct fuzzer_greybox : public fuzzer
                 // Run directly on this seed
                 auto input = loadFile(i.path());
 
-                trySeed(nullptr, std::move(input), true);
+                trySeed<true>(nullptr, std::move(input));
             }
         }
-        std::cerr << "Loaded " << queue.size() << " seeds." << std::endl;
+        std::cerr << "Loaded " << queue->size() << " seeds." << std::endl;
 
         std::cerr << "Mutating..." << std::endl;
         while (keepRunning)
         {
             // Make this a hybrid between greybox and blackbox fuzzing. Sometimes, instead of a mutating existing seed, test random input - if working, add it as seed.
-            bool makeRandomSeed = generators::randomFloat() < howGrey;
-            if (makeRandomSeed)
+            if (generators::randomFloat() < greyness)
             {
                 trySeed(nullptr, generators::generateRandomInput());
             }
             else
             {
-                switch (POWER_SCHEDULE)
-                {
-                case POWER_SCHEDULE_T::simple:
-                {
-                    auto selected = weightedRandomChoiceFavourite<true>(queue, 0.1);
-                    selected.nm++;
-
-                    trySeed(&selected, mutators::randomNumberOfRandomMutants(selected.input, weightedRandomChoiceFavourite<false>(queue, 0.1).input));
-                } break;
-                case POWER_SCHEDULE_T::boosted:
-                {
-                    auto selected = weightedRandomChoiceNormal<true>(queue);
-                    selected.nm++;
-
-                    trySeed(&selected, mutators::randomNumberOfRandomMutants(selected.input, weightedRandomChoiceNormal<false>(queue).input));
-                } break;
-                default:
-                    UNREACHABLE;
-                }
+                auto& selected = queue->weightedRandomChoiceBorrow();
+                selected.incrementImproved();
+                trySeed(&selected, randomNumberOfRandomMutants(selected.input));
             }
         }
     }
@@ -1598,13 +1810,24 @@ struct fuzzer_greybox : public fuzzer
         }
 
     }
+    std::unique_ptr<powerStructure> queue;
 
-    fuzzer_greybox(std::filesystem::path FUZZED_PROG, std::filesystem::path RESULT_FUZZ, bool MINIMIZE, std::string_view INPUT, std::chrono::seconds TIMEOUT, size_t NB_KNOWN_BUGS, POWER_SCHEDULE_T POWER_SCHEDULE, std::filesystem::path COVERAGE_FILE, float howGrey, std::filesystem::path INPUT_SEEDS) : fuzzer(std::move(FUZZED_PROG), std::move(RESULT_FUZZ), std::move(MINIMIZE), std::move(INPUT), std::move(TIMEOUT), std::move(NB_KNOWN_BUGS)), POWER_SCHEDULE(std::move(POWER_SCHEDULE)), COVERAGE_FILE(std::move(COVERAGE_FILE)), INPUT_SEEDS(std::move(INPUT_SEEDS)), howGrey(std::move(howGrey))
+    fuzzer_greybox(std::filesystem::path FUZZED_PROG, std::filesystem::path RESULT_FUZZ, bool MINIMIZE, std::string_view INPUT, std::chrono::seconds TIMEOUT, size_t NB_KNOWN_BUGS, POWER_SCHEDULE_T POWER_SCHEDULE, std::filesystem::path COVERAGE_FILE, float greyness, std::filesystem::path INPUT_SEEDS) : fuzzer(std::move(FUZZED_PROG), std::move(RESULT_FUZZ), std::move(MINIMIZE), std::move(INPUT), std::move(TIMEOUT), std::move(NB_KNOWN_BUGS)), POWER_SCHEDULE(std::move(POWER_SCHEDULE)), COVERAGE_FILE(std::move(COVERAGE_FILE)), INPUT_SEEDS(std::move(INPUT_SEEDS)), greyness(std::move(greyness))
     {
-
+        switch (POWER_SCHEDULE)
+        {
+        case fuzzer_greybox::POWER_SCHEDULE_T::simple:
+            queue = std::make_unique<powerSimple>();
+            break;
+        case fuzzer_greybox::POWER_SCHEDULE_T::boosted:
+            queue = std::make_unique<powerBoosted>();
+            break;
+        default:
+            UNREACHABLE;
+        }
     }
 
-    fuzzer_greybox(std::filesystem::path FUZZED_PROG, std::filesystem::path RESULT_FUZZ, bool MINIMIZE, std::string_view INPUT, std::chrono::seconds TIMEOUT, size_t NB_KNOWN_BUGS, POWER_SCHEDULE_T POWER_SCHEDULE, std::filesystem::path COVERAGE_FILE, float howGrey) : fuzzer_greybox(std::move(FUZZED_PROG), std::move(RESULT_FUZZ), std::move(MINIMIZE), std::move(INPUT), std::move(TIMEOUT), std::move(NB_KNOWN_BUGS), std::move(POWER_SCHEDULE), std::move(COVERAGE_FILE), std::move(howGrey), "MY_SEED")
+    fuzzer_greybox(std::filesystem::path FUZZED_PROG, std::filesystem::path RESULT_FUZZ, bool MINIMIZE, std::string_view INPUT, std::chrono::seconds TIMEOUT, size_t NB_KNOWN_BUGS, POWER_SCHEDULE_T POWER_SCHEDULE, std::filesystem::path COVERAGE_FILE, float greyness) : fuzzer_greybox(std::move(FUZZED_PROG), std::move(RESULT_FUZZ), std::move(MINIMIZE), std::move(INPUT), std::move(TIMEOUT), std::move(NB_KNOWN_BUGS), std::move(POWER_SCHEDULE), std::move(COVERAGE_FILE), std::move(greyness), "MY_SEED")
     {
         populateWithMySeeds();
     }
