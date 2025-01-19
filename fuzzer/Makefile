@@ -65,7 +65,7 @@ prepare-seeds:
 	@echo "Generating interesting seeds from source files..."
 	@mkdir -p $(SEED_DIR)
 	@cd $(TASK4_DIR) && $(MAKE) run
-	@if [ -d "$INPUT_SEEDS" ]; then echo "Directory $(INPUT_SEEDS) exists. Copying contents from $(INPUT_SEEDS) to $(SEED_DIR)...";cp $(INPUT_SEEDS)/* $(SEED_DIR)/; fi
+	@if [ -d "$(INPUT_SEEDS)" ]; then echo "Directory $(INPUT_SEEDS) exists. Copying contents from $(INPUT_SEEDS) to $(SEED_DIR)...";cp $(INPUT_SEEDS)/* $(SEED_DIR)/; fi
 
 run:
 	@if [ "$(FUZZER)" = "blackbox" ]; then \
