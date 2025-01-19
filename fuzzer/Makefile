@@ -67,6 +67,7 @@ else
 		$(MAKE) greybox-smarter
 	else
 		$(MAKE) greybox
+	endif
 endif
 
 clean:

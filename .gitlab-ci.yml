@@ -122,6 +122,12 @@ task4-grade:
   image:
     name: pierredb/ni-apt-grader:latest
     pull_policy: always
+rules:
+  - changes: 
+    - code-coverage/*
+    - fuzzer/*
+    - seed-generator/*
+    - .gitlab-ci.yml
   stage: test
   #needs: ["test"]
   script:
