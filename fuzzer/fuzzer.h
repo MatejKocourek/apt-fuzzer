@@ -1640,21 +1640,29 @@ struct fuzzer_greybox : public fuzzer
     {
         std::pair<double, coveragePath> res;
         std::string_view str(lcov);
-        getLine(str);
-        getLine(str);
-        //while (!getLine(str).starts_with("DA:"));
-
         size_t covered = 0;
 
-        while (getLine(str, ',').starts_with("DA:"))  // Load line number
+        //Read lines until name of the file is present. (This is probably just for our coverage tool)
+        while (true)
         {
-            std::string_view numStr = getLine(str, '\n');
+            while (!getLine(str).starts_with("SF:"))
+            {
+                if (str.empty())
+                    goto foundEverything;
+            }
+
+            while (str.starts_with("DA:"))
+        {
+                getLine(str, ','); // Eat up to the comma
+                std::string_view numStr = getLine(str, '\n'); // Get the number
             size_t countHit;
             std::from_chars(numStr.data(), numStr.data() + numStr.size(), countHit);
             res.second.push_back(countHit > 0);
-            if(countHit > 0)
+                if (countHit > 0)
                 covered++;
         }
+        }
+        foundEverything:
         
         size_t total = res.second.size();
 
