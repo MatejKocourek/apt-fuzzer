@@ -276,17 +276,7 @@ namespace mutators {
         input.reserve(input.size() + input2.size());
         input += input2;
     }
-    /// <summary>
-    /// Join two strings together with newline in between
-    /// </summary>
-    /// <param name="input">First string, will increase in size</param>
-    /// <param name="input2">Second string, will be added to the first one</param>
-    void concatWithNewl(std::string& input, const std::string& input2)
-    {
-        input.reserve(input.size() + input2.size() + 1);
-        input += '\n';
-        input += input2;
-    }
+
     /// <summary>
     /// If seed is a number, slightly change it
     /// </summary>
@@ -1307,7 +1297,7 @@ struct fuzzer_greybox : public fuzzer
 
     struct seed
     {
-        seed(std::string&& input) : input(std::move(input)) {};
+        seed(std::string input) : input(std::move(input)) {};
         const std::string input;
 
         virtual void incrementSelected() = 0;
@@ -1324,7 +1314,7 @@ struct fuzzer_greybox : public fuzzer
         size_t nm; // how many times it was already selected to be mutated
         size_t nc; // how many times it led to an increase in coverage
 
-        seedSimple(std::string&& input, double T, size_t nm = 1, size_t nc = 1) : seed(std::move(input)), T(T), nm(nm), nc(nc)
+        seedSimple(std::string input, double T, size_t nm = 1, size_t nc = 1) : seed(std::move(input)), T(T), nm(nm), nc(nc)
         {
             e = power();
         }
@@ -1358,7 +1348,7 @@ struct fuzzer_greybox : public fuzzer
     {
         const coveragePath& h; //hash of the output
 
-        seedBoosted(std::string&& input, const coveragePath& h) : seed(std::move(input)), h(h)
+        seedBoosted(std::string input, const coveragePath& h) : seed(std::move(input)), h(h)
         {
         }
 
@@ -1383,7 +1373,7 @@ struct fuzzer_greybox : public fuzzer
 
     struct powerStructure
     {
-        virtual void add(std::string&& input, const coveragePath& h, double T, size_t nm = 1, size_t nc = 1) = 0;
+        virtual void add(std::string input, const coveragePath& h, double T, size_t nm = 1, size_t nc = 1) = 0;
         virtual size_t size() const = 0;
         virtual const seed& at(size_t n) = 0;
         //virtual const seed& weightedRandomChoice() const = 0;
@@ -1396,11 +1386,11 @@ struct fuzzer_greybox : public fuzzer
 
     struct powerSimple : public powerStructure
     {
-        void add(std::string&& input, double T, size_t nm = 1, size_t nc = 1)
+        void add(std::string input, double T, size_t nm = 1, size_t nc = 1)
         {
             queue.emplace(std::move(input), T, nm, nc);
         }
-        virtual void add(std::string&& input, const coveragePath& h, double T, size_t nm = 1, size_t nc = 1) override
+        virtual void add(std::string input, const coveragePath& h, double T, size_t nm = 1, size_t nc = 1) override
         {
             add(std::move(input), T, nm, nc);
         }
@@ -1440,15 +1430,16 @@ struct fuzzer_greybox : public fuzzer
         /// <returns>Selected seed, extracted or copied</returns>
         std::pair<std::multiset<seedSimple>::node_type, std::multiset<seedSimple>::const_iterator> weightedRandomChoiceExtract()
         {
-            // Calculate the total weight
-
-            double totalWeight = 1;
+            if (queue.empty()) [[unlikely]]
+                throw std::runtime_error("Queue is empty, cannot choose");
+            else if (queue.size() == 1)
+                return { queue.extract(queue.cbegin()), std::move(queue.cend()) };
 
             const size_t firstTenPercent = queue.size() * 0.1f;
             const double coefficientGood = 0.5 / firstTenPercent;
             const double coefficientWorse = 0.5 / (queue.size() - firstTenPercent);
 
-            std::uniform_real_distribution<> dis(0.0, totalWeight); // Range [0, totalWeight)
+            std::uniform_real_distribution<> dis(0.0, 1.0); // Range [0, totalWeight)
 
             // Generate a random number
             double randomValue = dis(gen);
@@ -1480,13 +1471,13 @@ struct fuzzer_greybox : public fuzzer
     {
         bool isBorrowed = false;
 
-        void add(std::string&& input, const coveragePath& h)
+        void add(std::string input, const coveragePath& h)
         {
             if(isBorrowed) [[unlikely]]
                 throw std::logic_error("Cannot add to queue with borrowed element");
             queue.emplace_back(std::move(input), h);
         }
-        virtual void add(std::string&& input, const coveragePath& h, double T, size_t nm = 1, size_t nc = 1) override
+        virtual void add(std::string input, const coveragePath& h, double T, size_t nm = 1, size_t nc = 1) override
         {
             add(std::move(input), h);
         }
@@ -1520,6 +1511,9 @@ struct fuzzer_greybox : public fuzzer
         /// <returns>Selected seed, extracted or copied</returns>
         virtual seed& weightedRandomChoice()
         {
+            if (queue.empty()) [[unlikely]]
+                throw std::runtime_error("Queue is empty, cannot choose");
+
             // Calculate the total weight
             double totalWeight = 0.0;
             for (const auto& option : queue)

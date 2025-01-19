@@ -34,6 +34,11 @@ TEST(InputGenerator, generateRandomNum) {
 	EXPECT_TRUE(num >= 42 && num <= 123);
 }
 
+TEST(InputGenerator, generateRandomBadRange) {
+	EXPECT_ANY_THROW(generators::generateRandomNum(100, 0));
+	EXPECT_ANY_THROW(generators::generateRandomString(1, 100, 0));
+}
+
 class FuzzerCat : public ::testing::Test {
 protected:
 	std::optional<fuzzer_blackbox> fuzz;
@@ -303,6 +308,12 @@ TEST(Mutators, mutateBlocksDigit) {
 	EXPECT_EQ(tmp.size(), 5);
 }
 
+TEST(Mutators, mutateBlocksNewline) {
+	std::string tmp = "test";
+	mutators::insertNewline(tmp);
+	EXPECT_EQ(tmp.size(), 5);
+}
+
 TEST(Mutators, mutateConcat) {
 	std::string tmp1 = "test";
 	std::string tmp2 = "ahoj";
@@ -326,6 +337,54 @@ TEST(Mutators, changeNum) {
 	std::string tmp = "42";
 	mutators::changeNum(tmp);
 	EXPECT_NE(std::stoi(tmp), 42);
+}
+
+TEST(Power, powerSimple) {
+	std::string input = "test";
+	fuzzer_greybox::powerSimple power;
+
+	fuzzer_greybox::coveragePath hash;
+	power.hashmap.emplace(hash, 1);
+
+	power.add(input, hash, 1, 1);
+	power.add(input, hash, 1, 1);
+	ASSERT_EQ(power.size(), 2);
+
+	EXPECT_EQ(input, power.at(0).input);
+
+	auto& choice = power.weightedRandomChoiceBorrow();
+	EXPECT_EQ(input, choice.input);
+
+	choice.incrementSelected();
+	choice.update();
+
+	power.weightedRandomChoiceReturn();
+
+	EXPECT_EQ(power.size(), 2);
+}
+
+TEST(Power, powerBoosted) {
+	std::string input = "test";
+	fuzzer_greybox::powerBoosted power;
+
+	fuzzer_greybox::coveragePath hash;
+	power.hashmap.emplace(hash, 1);
+
+	power.add(input, hash, 1, 1);
+	power.add(input, hash, 1, 1);
+	ASSERT_EQ(power.size(), 2);
+
+	EXPECT_EQ(input, power.at(0).input);
+
+	auto& choice = power.weightedRandomChoiceBorrow();
+	EXPECT_EQ(input, choice.input);
+
+	choice.incrementSelected();
+	choice.update();
+
+	power.weightedRandomChoiceReturn();
+
+	EXPECT_EQ(power.size(), 2);
 }
 
 TEST(Escape, escape) {
