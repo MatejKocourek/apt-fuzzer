@@ -10,17 +10,12 @@
 #include <sstream>
 #include <optional>
 #include <filesystem>
-#include "symbol-identifiers.h"
 #include <unordered_set>
+#include "symbol-identifiers.h"
 
 extern "C" {
 	TSLanguage* tree_sitter_c();
 }
-
-#define STR(...) static_cast<std::stringstream &&>(std::stringstream() << __VA_ARGS__).str()
-
-
-
 
 
 class SeedGenerator {
@@ -161,26 +156,6 @@ public:
 	{
 		std::unordered_set<std::string> strings(constsStrings);
 		size_t fileCount = 0;
-
-		//std::cout << "strings: " << std::endl;
-		//for (const auto& i : constsStrings)
-		//	std::cout << i << std::endl;
-		//std::cout << std::endl;
-
-		//std::cout << "chars: " << std::endl;
-		//for (const auto& i : constsChars)
-		//	std::cout << i << std::endl;
-		//std::cout << std::endl;
-
-		//std::cout << "ints: " << std::endl;
-		//for (const auto& i : constsNumbersInts)
-		//	std::cout << i << std::endl;
-		//std::cout << std::endl;
-
-		//std::cout << "numbers: " << std::endl;
-		//for (const auto& i : constsNumbersOther)
-		//	std::cout << i << std::endl;
-		//std::cout << std::endl;
 
 		// First, create seeds from all literals, no matter their type, as string
 		strings.insert(constsChars.begin(), constsChars.end());
