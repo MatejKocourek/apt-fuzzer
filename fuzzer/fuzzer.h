@@ -145,7 +145,7 @@ std::ostream& escapeHex(std::ostream& out, char c)
 /// <returns>Output stream from argument</returns>
 std::ostream& escape(std::ostream& out, char c)
 {
-    if (c > 126 || (c < 32 && c > 13))
+    if (static_cast<unsigned char>(c) > 126 || (c < 32 && c > 13))
         return escapeHex(out, c);
 
     switch (c)
@@ -244,7 +244,7 @@ namespace mutators {
         std::uniform_int_distribution<size_t> distStart(0, input.size());
         size_t blockStart = distStart(gen);
 
-        input.insert(blockStart, generators::generateRandomString(blockLen,33,126));
+        input.insert(blockStart, generators::generateRandomString(blockLen, 32, 126));
     }
 
     /// <summary>
