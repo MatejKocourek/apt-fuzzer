@@ -49,8 +49,8 @@ greybox: build
 
 greybox-smarter: build
 	@echo "Running a smarter version of greybox with analysis of the source code"
-	$(MAKE) prepare-seeds
-	$(MAKE) greybox
+	@$(MAKE) prepare-seeds
+	@$(MAKE) greybox
 	@rm -fr $(SEED_DIR)
 
 prepare-seeds:
@@ -60,15 +60,13 @@ prepare-seeds:
 	@if [ -d "$INPUT_SEEDS" ]; then echo "Directory $(INPUT_SEEDS) exists. Copying contents from $(INPUT_SEEDS) to $(SEED_DIR)...";cp $(INPUT_SEEDS)/* $(SEED_DIR)/; fi
 
 run:
-ifeq ($(FUZZER), blackbox)
-	$(MAKE) blackbox
-else
-	ifeq ($(SEEDS_SOURCE), smart)
-		$(MAKE) greybox-smarter
-	else
-		$(MAKE) greybox
-	endif
-endif
+	@if [ "$(FUZZER)" = "blackbox" ]; then \
+		$(MAKE) blackbox; \
+	elif [ "$(SEEDS_SOURCE)" = "smart" ]; then \
+		$(MAKE) greybox-smarter; \
+	else \
+		$(MAKE) greybox; \
+	fi
 
 clean:
 	@echo "Cleaning build..."
