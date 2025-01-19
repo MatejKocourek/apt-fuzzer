@@ -74,7 +74,9 @@ public:
 		{
 			if (noQuotes[i] == '\\')
 			{
-				res += escapeChar(noQuotes.at(++i));
+				++i;
+				if (noQuotes.at(i) != '\n')
+					res += escapeChar(noQuotes.at(i));
 			}
 			else [[likely]]
 				res += noQuotes[i];
