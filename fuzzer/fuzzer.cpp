@@ -120,10 +120,13 @@ int main(int argc, char* argv[])
             float GREYNESS = std::atoi(argv[9]) / 100.0f;
             std::cerr << "GREYNESS=" << GREYNESS << std::endl;
 
-            if (argc <= 10)
+            float CONCATENATEDNESS = std::atoi(argv[10]) / 100.0f;
+            std::cerr << "CONCATENATEDNESS=" << CONCATENATEDNESS << std::endl;
+
+            if (argc <= 11)
             {
                 std::cerr << "Seed directory not provided" << std::endl;
-                fuzzer_greybox greybox(std::move(FUZZED_PROG), std::move(RESULT_FUZZ), std::move(MINIMIZE), std::move(fuzzInputType), std::move(TIMEOUT), std::move(NB_KNOWN_BUGS), schedule, std::move(COVERAGE_FILE), GREYNESS);
+                fuzzer_greybox greybox(std::move(FUZZED_PROG), std::move(RESULT_FUZZ), std::move(MINIMIZE), std::move(fuzzInputType), std::move(TIMEOUT), std::move(NB_KNOWN_BUGS), schedule, std::move(COVERAGE_FILE), GREYNESS, CONCATENATEDNESS);
                 myFuzzer = &greybox;
                 greybox.run();
             }
@@ -131,7 +134,7 @@ int main(int argc, char* argv[])
             {
                 std::filesystem::path INPUT_SEEDS = argv[10];
                 std::cerr << "Seed directory provided: " << INPUT_SEEDS << std::endl;
-                fuzzer_greybox greybox(std::move(FUZZED_PROG), std::move(RESULT_FUZZ), std::move(MINIMIZE), std::move(fuzzInputType), std::move(TIMEOUT), std::move(NB_KNOWN_BUGS), schedule, std::move(COVERAGE_FILE), GREYNESS, std::move(INPUT_SEEDS));
+                fuzzer_greybox greybox(std::move(FUZZED_PROG), std::move(RESULT_FUZZ), std::move(MINIMIZE), std::move(fuzzInputType), std::move(TIMEOUT), std::move(NB_KNOWN_BUGS), schedule, std::move(COVERAGE_FILE), GREYNESS, CONCATENATEDNESS, std::move(INPUT_SEEDS));
                 myFuzzer = &greybox;
                 greybox.run();
             }

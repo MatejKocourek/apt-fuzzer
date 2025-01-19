@@ -1571,7 +1571,7 @@ struct fuzzer_greybox : public fuzzer
 
     std::string randomNumberOfRandomMutants(std::string input)
     {
-        if (generators::randomFloat() < 0.5)
+        if (generators::randomFloat() < concatenatedness)
         {
             createMashups(input);
             //std::exponential_distribution<double> distVal(1);
@@ -1738,6 +1738,7 @@ struct fuzzer_greybox : public fuzzer
     }
 
     const float greyness;
+    const float concatenatedness;
 
     virtual void fuzz() override
     {
@@ -1814,7 +1815,7 @@ struct fuzzer_greybox : public fuzzer
     }
     std::unique_ptr<powerStructure> queue;
 
-    fuzzer_greybox(std::filesystem::path FUZZED_PROG, std::filesystem::path RESULT_FUZZ, bool MINIMIZE, std::string_view INPUT, std::chrono::seconds TIMEOUT, size_t NB_KNOWN_BUGS, POWER_SCHEDULE_T POWER_SCHEDULE, std::filesystem::path COVERAGE_FILE, float greyness, std::filesystem::path INPUT_SEEDS) : fuzzer(std::move(FUZZED_PROG), std::move(RESULT_FUZZ), std::move(MINIMIZE), std::move(INPUT), std::move(TIMEOUT), std::move(NB_KNOWN_BUGS)), POWER_SCHEDULE(std::move(POWER_SCHEDULE)), COVERAGE_FILE(std::move(COVERAGE_FILE)), INPUT_SEEDS(std::move(INPUT_SEEDS)), greyness(std::move(greyness))
+    fuzzer_greybox(std::filesystem::path FUZZED_PROG, std::filesystem::path RESULT_FUZZ, bool MINIMIZE, std::string_view INPUT, std::chrono::seconds TIMEOUT, size_t NB_KNOWN_BUGS, POWER_SCHEDULE_T POWER_SCHEDULE, std::filesystem::path COVERAGE_FILE, float greyness, float concatenatedness, std::filesystem::path INPUT_SEEDS) : fuzzer(std::move(FUZZED_PROG), std::move(RESULT_FUZZ), std::move(MINIMIZE), std::move(INPUT), std::move(TIMEOUT), std::move(NB_KNOWN_BUGS)), POWER_SCHEDULE(std::move(POWER_SCHEDULE)), COVERAGE_FILE(std::move(COVERAGE_FILE)), INPUT_SEEDS(std::move(INPUT_SEEDS)), greyness(std::move(greyness)), concatenatedness(std::move(concatenatedness))
     {
         switch (POWER_SCHEDULE)
         {
@@ -1829,7 +1830,7 @@ struct fuzzer_greybox : public fuzzer
         }
     }
 
-    fuzzer_greybox(std::filesystem::path FUZZED_PROG, std::filesystem::path RESULT_FUZZ, bool MINIMIZE, std::string_view INPUT, std::chrono::seconds TIMEOUT, size_t NB_KNOWN_BUGS, POWER_SCHEDULE_T POWER_SCHEDULE, std::filesystem::path COVERAGE_FILE, float greyness) : fuzzer_greybox(std::move(FUZZED_PROG), std::move(RESULT_FUZZ), std::move(MINIMIZE), std::move(INPUT), std::move(TIMEOUT), std::move(NB_KNOWN_BUGS), std::move(POWER_SCHEDULE), std::move(COVERAGE_FILE), std::move(greyness), "MY_SEED")
+    fuzzer_greybox(std::filesystem::path FUZZED_PROG, std::filesystem::path RESULT_FUZZ, bool MINIMIZE, std::string_view INPUT, std::chrono::seconds TIMEOUT, size_t NB_KNOWN_BUGS, POWER_SCHEDULE_T POWER_SCHEDULE, std::filesystem::path COVERAGE_FILE, float greyness, float concatenatedness) : fuzzer_greybox(std::move(FUZZED_PROG), std::move(RESULT_FUZZ), std::move(MINIMIZE), std::move(INPUT), std::move(TIMEOUT), std::move(NB_KNOWN_BUGS), std::move(POWER_SCHEDULE), std::move(COVERAGE_FILE), std::move(greyness), std::move(concatenatedness), "MY_SEED")
     {
         populateWithMySeeds();
     }
