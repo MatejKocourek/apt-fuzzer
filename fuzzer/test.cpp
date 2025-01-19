@@ -328,38 +328,19 @@ TEST(Mutators, changeNum) {
 	EXPECT_NE(std::stoi(tmp), 42);
 }
 
-TEST(Power, weightedChoiceFavourite) {
-	std::string input = "test";
-	fuzzer_greybox::coveragePath hash;
-	std::multiset<fuzzer_greybox::seed> options;
-	options.emplace(std::move(input), hash, 1, 1, 1, 1);
-
-	auto choice = fuzzer_greybox::weightedRandomChoiceFavourite<true>(options, 0.1);
-	
-	EXPECT_EQ(hash, choice.h);
-	EXPECT_EQ(options.size(), 0);
-}
-
-TEST(Power, weightedChoiceNormal) {
-	std::string input = "test";
-	fuzzer_greybox::coveragePath hash;
-	std::multiset<fuzzer_greybox::seed> options;
-	options.emplace(std::move(input), hash, 1, 1, 1, 1);
-
-	auto choice = fuzzer_greybox::weightedRandomChoiceNormal<true>(options);
-
-	EXPECT_EQ(hash, choice.h);
-	EXPECT_EQ(options.size(), 0);
-}
-
 TEST(Escape, escape) {
 
-	for (size_t i = 0; i < 128; i++)
+	for (size_t i = 0; i < 256; i++)
 	{
 		std::stringstream ss;
 		escape(ss, (char)i);
-		if(ss.str().size() > 0)
-			EXPECT_GE(ss.str()[0], ' ');
+
+		std::string res = ss.str();
+		for (const auto& c : res)
+		{
+			unsigned char uchar = static_cast<unsigned char>(c);
+			EXPECT_FALSE(uchar > 126 || uchar < 8 || uchar == 11 || (uchar < 32 && uchar > 13));
+		}
 	}
 }
 
@@ -388,7 +369,7 @@ protected:
 	std::optional<fuzzer_greybox> fuzz;
 
 	void SetUp() override {
-		fuzz.emplace("/bin/false", "/tmp/fuzzer/", true, "stdin", std::chrono::seconds(60), 1, fuzzer_greybox::POWER_SCHEDULE_T::simple, "coverage.lcov", 50);
+		fuzz.emplace("/bin/false", "/tmp/fuzzer/", true, "stdin", std::chrono::seconds(60), 1, fuzzer_greybox::POWER_SCHEDULE_T::simple, "coverage.lcov", 50, 25);
 	}
 
 	void TearDown() override {
