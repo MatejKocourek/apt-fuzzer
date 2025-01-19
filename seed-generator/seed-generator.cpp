@@ -4,21 +4,29 @@
 #include <vector>
 #include <filesystem>
 #include "seed-generator.h"
-#define STR(...) static_cast<std::stringstream &&>(std::stringstream() << __VA_ARGS__).str()
 
-std::string loadFile(const std::filesystem::path& path)
+/// <summary>
+/// Load the whole file into a string
+/// </summary>
+/// <param name="path">Path to the file</param>
+/// <returns>Contents of given file</returns>
+static std::string loadFile(const std::filesystem::path& path)
 {
-	auto file = std::ifstream(path);
+	auto file = std::ifstream(path, std::ios::in | std::ios::binary);
 
-	if (!file.is_open())
-		throw std::runtime_error("Cannot open file");
+	if (!file.is_open()) [[unlikely]]
+		throw std::runtime_error("Cannot open file: " + path.string());
 
-	std::string sourcecode = std::string(std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>());
+	std::string res;
+	file.seekg(0, std::ios::end);
+	res.resize(file.tellg());
+	file.seekg(0, std::ios::beg);
+	file.read(&res[0], res.size());
 
-	if (file.fail())
-		throw std::runtime_error("Error reading file");
+	if (file.fail()) [[unlikely]]
+		throw std::runtime_error("Error reading file: " + path.string());
 
-	return sourcecode;
+	return res;
 }
 
 int main(int argc, char* argv[]) {
@@ -54,7 +62,7 @@ int main(int argc, char* argv[]) {
 			}
 		}
 
-		//std::cerr << "Creating seeds from parsed files" << std::endl;
+		std::cerr << "Creating seeds from parsed files" << std::endl;
 		seedGenerator.createSeeds(argv[2]);
 	}
 	catch (const std::exception& e)

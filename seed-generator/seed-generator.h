@@ -20,11 +20,25 @@ extern "C" {
 
 class SeedGenerator {
 public:
+
+	// Captured consts that are of string type
 	std::unordered_set<std::string> constsStrings;
+
+	// Captured consts that are of char type
 	std::unordered_set<std::string> constsChars;
+
+	// Captured consts that are of int type
 	std::unordered_set<std::string> constsInts;
+
+	// Captured consts that are any other type
 	std::unordered_set<std::string> constsOthers;
 
+	/// <summary>
+	/// Get string_view representation of the code of the underlaying node
+	/// </summary>
+	/// <param name="source">Source code to where the result will point</param>
+	/// <param name="node">Node to show</param>
+	/// <returns>string_view from source string</returns>
 	static std::string_view nodeString(const std::string& source, const ts::Node& node)
 	{
 		auto range = node.getByteRange();
@@ -32,7 +46,12 @@ public:
 		return functionName;
 	}
 
-	static char escapeChar(char c)
+	/// <summary>
+	/// Un-escape char in C compiler fashion
+	/// </summary>
+	/// <param name="c">Character following a backlash to un-escape</param>
+	/// <returns>Original character</returns>
+	static char unEscapeChar(char c)
 	{
 		switch (c)
 		{
@@ -64,7 +83,12 @@ public:
 		}
 	}
 
-	static std::string escapeString(const std::string_view& string)
+	/// <summary>
+	/// Un-escape string in C compiler fashion
+	/// </summary>
+	/// <param name="string">String that should be unescaped</param>
+	/// <returns>New string that is unescaped</returns>
+	static std::string unEscapeString(const std::string_view& string)
 	{
 		auto noQuotes = string.substr(1, string.size() - 2);
 		std::string res;
@@ -76,7 +100,7 @@ public:
 			{
 				++i;
 				if (noQuotes.at(i) != '\n')
-					res += escapeChar(noQuotes.at(i));
+					res += unEscapeChar(noQuotes.at(i));
 			}
 			else [[likely]]
 				res += noQuotes[i];
@@ -85,6 +109,10 @@ public:
 		return res;
 	}
 
+	/// <summary>
+	/// Process numeric constant and decide if it is 10-base integer or something else
+	/// </summary>
+	/// <param name="string"></param>
 	void recordNumber(const std::string_view& string)
 	{
 		for (const auto& c : string)
@@ -101,6 +129,11 @@ public:
 		constsInts.emplace(string);
 	}
 
+	/// <summary>
+	/// Parse a node and all its children and look for constants to process
+	/// </summary>
+	/// <param name="sourcecode">Sourcecode that tree-sitter was run on</param>
+	/// <param name="node">Node to parse</param>
 	void parseRecursive(const std::string& sourcecode, const ts::Node& node)
 	{
 		for (const auto& child : ts::Children(node))
@@ -110,10 +143,10 @@ public:
 			switch (type)
 			{
 			case ts_symbol_identifiers::sym_string_literal:
-				constsStrings.emplace(escapeString(nodeString(sourcecode, child)));
+				constsStrings.emplace(unEscapeString(nodeString(sourcecode, child)));
 				break;
 			case ts_symbol_identifiers::sym_char_literal:
-				constsChars.emplace(escapeString(nodeString(sourcecode, child)));
+				constsChars.emplace(unEscapeString(nodeString(sourcecode, child)));
 				break;
 			case ts_symbol_identifiers::sym_number_literal:
 				recordNumber(nodeString(sourcecode, child));
@@ -136,6 +169,11 @@ public:
 		}
 	}
 
+	/// <summary>
+	/// Write a string filled with letter 'a's in certain amount of times
+	/// </summary>
+	/// <param name="out">Stream to write to</param>
+	/// <param name="size">Size of the string to create</param>
 	static void writeStringOfSize(std::ostream& out, size_t size)
 	{
 		std::ostream_iterator<char> out_iter(out);
@@ -143,26 +181,28 @@ public:
 	}
 
 public:
+	/// <summary>
+	/// Parse given sourcecode of C file, and find and save all constants
+	/// </summary>
+	/// <param name="sourcecode">Full sourcecode of a given file</param>
 	void parseSource(const std::string& sourcecode)
 	{
 		// Create a language and parser.
 		ts::Parser parser{ tree_sitter_c() };
 
 		// Parse the provided string into a syntax tree.
-
 		auto tree = parser.parseString(sourcecode);
 
 		// Get the root node of the syntax tree. 
-
 		parseRecursive(sourcecode, tree.getRootNode());
 
-
+		// Sort out constsOthers
 		for (const auto& i : constsOthers)
 		{
 			if (i.starts_with('\"') && i.ends_with('\"')) // This is probably a string
-				constsStrings.insert(escapeString(i));
+				constsStrings.insert(unEscapeString(i));
 			if (i.starts_with('\'') && i.ends_with('\'')) // This is probably a char
-				constsChars.insert(escapeString(i));
+				constsChars.insert(unEscapeString(i));
 			else if (std::isdigit(i.at(0))) // This begins as integer. Take the integer value
 			{
 				size_t pos;
@@ -175,6 +215,10 @@ public:
 		}
 	}
 
+	/// <summary>
+	/// Create seeds from all saved constants. Will create a file for each constant, numbered from 0.txt up
+	/// </summary>
+	/// <param name="path">Path to the folder where to create</param>
 	void createSeeds(const std::filesystem::path& path) const
 	{
 		std::unordered_set<std::string> strings(constsStrings);
@@ -193,9 +237,9 @@ public:
 
 		std::unordered_set<size_t> stringSizes;
 
+		// Output all strings, nothing to do with those
 		for (const auto& i : strings)
 		{
-			//std::cerr << fileCount << ":" << i.size() << std::endl;
 			std::ofstream(path / (std::to_string(fileCount++) + ".txt")) << std::string_view(i);
 			stringSizes.insert(i.size());
 		}
