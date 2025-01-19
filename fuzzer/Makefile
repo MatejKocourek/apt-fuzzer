@@ -47,8 +47,11 @@ prepare-coverage:
 greybox: build
 	@$(MAKE) prepare-coverage
 	@echo "Running greybox fuzzer on $(FUZZED_PROG) and placing results to $(RESULT_FUZZ)"
-	@INPUT_SEEDS ?= CRAFTED_SEEDS
+ifdef INPUT_SEEDS
 	@cd $(FUZZED_PROG) && $(BUILD_DIR)/fuzzer instr_prog $(RESULT_FUZZ) $(MINIMIZE) $(INPUT) $(TIMEOUT) $(NB_KNOWN_BUGS) $(POWER_SCHEDULE) coverage.lcov 50 25 $(INPUT_SEEDS)
+else
+	@cd $(FUZZED_PROG) && $(BUILD_DIR)/fuzzer instr_prog $(RESULT_FUZZ) $(MINIMIZE) $(INPUT) $(TIMEOUT) $(NB_KNOWN_BUGS) $(POWER_SCHEDULE) coverage.lcov 50 25 $(CRAFTED_SEEDS)
+endif
 	@rm $(FUZZED_PROG)/instr_prog
 
 greybox-smarter: build
