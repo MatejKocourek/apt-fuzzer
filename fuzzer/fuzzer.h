@@ -207,8 +207,8 @@ namespace mutators {
         if (str.size() <= 1) [[unlikely]]
             return;
 
-        std::exponential_distribution<double> distLen(1.0);
-        int blockSize = 1 + lround(distLen(gen));
+        std::exponential_distribution<float> distLen(1.0);
+        int blockSize = 1 + round(distLen(gen));
 
         if ((int)str.size() - blockSize <= 0) [[unlikely]]
             return;//Don't generate empty strings
@@ -226,7 +226,7 @@ namespace mutators {
     /// </summary>
     void insertBlock(std::string& input)
     {
-        std::exponential_distribution<double> distLen(1.0);
+        std::exponential_distribution<float> distLen(1.0);
         size_t blockLen = 1 + round(distLen(gen));
         std::uniform_int_distribution<size_t> distStart(0, input.size());
         size_t blockStart = distStart(gen);
@@ -292,6 +292,9 @@ namespace mutators {
     /// </summary>
     void changeNum(std::string& input)
     {
+        if (input.size() >= 19) // Cannot work with too long strings
+            return;
+
         for (const auto& c : input)
         {
             if (!isdigit(c))
@@ -299,7 +302,7 @@ namespace mutators {
         }
         auto num = std::stoll(input);
 
-        std::exponential_distribution<double> distLen(2.0);
+        std::exponential_distribution<float> distLen(0.25);
 
         std::uniform_int_distribution<int> negative(0, 1);
 
@@ -331,7 +334,7 @@ namespace mutators {
     void addASCII(std::string& input)
     {
         std::uniform_int_distribution<size_t> distPos(0, input.size() - 1);
-        std::exponential_distribution<double> distVal(1);
+        std::exponential_distribution<float> distVal(1);
 
         std::uniform_int_distribution<int> negative(0, 1);
 
@@ -352,8 +355,7 @@ namespace mutators {
     /// <param name="input2">Some mutators will use this second string to read from</param>
     void randomMutant(std::string& input)
     {
-        std::uniform_int_distribution<int> mutants(0, 5);
-        switch (mutants(gen))
+        switch (generators::randomInt(6))
         {
         case 0:
             return deleteBlock(input);
@@ -378,9 +380,9 @@ namespace mutators {
     /// <param name="input1">String to mutate</param>
     void randomNumberOfRandomMutants(std::string& input)
     {
-        std::exponential_distribution<double> distVal(1);
+        std::exponential_distribution<float> distVal(1);
 
-        for (size_t i = 1 + distVal(gen); i != 0; i--)
+        for (size_t i = 1 + round(distVal(gen)); i != 0; i--)
             randomMutant(input);
     }
 }
@@ -1193,6 +1195,7 @@ public:
             std::cerr << "Timeout reached or everything found, ending." << std::endl;
             });
 
+        try
         {
             std::vector<std::jthread> threads;
             auto threadCount = 1;// std::thread::hardware_concurrency();
@@ -1205,6 +1208,11 @@ public:
 
             fuzz();
         }
+        catch (const std::exception& e)
+        {
+            std::cerr << "ERROR: " << e.what() << std::endl;
+        }
+
         std::cerr << "All fuzzers done, ready to exit" << std::endl;
         threadsRunning = false;
     }
@@ -1541,8 +1549,8 @@ struct fuzzer_greybox : public fuzzer
 
     void createMashups(std::string& input)
     {
-        std::exponential_distribution<double> distVal(0.5);
-        size_t mashups = 1 + distVal(gen);
+        std::exponential_distribution<float> distVal(0.5);
+        size_t mashups = 1 + round(distVal(gen));
         for (size_t i = 0; i < mashups; i++)
         {
             switch (generators::randomInt(6))
