@@ -151,18 +151,15 @@ std::ostream& escape(std::ostream& out, char c)
     switch (c)
     {
     case '\0':
-        out << "\\0";
-        break;
     case 1:
     case 2:
     case 3:
     case 4:
     case 5:
     case 6:
-        escapeHex(out, c);
-        break;
     case '\a':
-        out << "\\a";
+    case '\v':
+        escapeHex(out, c);
         break;
     case '\b':
         out << "\\b";
@@ -172,9 +169,6 @@ std::ostream& escape(std::ostream& out, char c)
         break;
     case '\n':
         out << "\\n";
-        break;
-    case '\v':
-        out << "\\v";
         break;
     case '\f':
         out << "\\f";
