@@ -51,7 +51,7 @@ Mutation testing heavily depends on randomness. Value is around 70% +- 15%.
 
 Tested on uniq.
 
-Boosted power schedule starts off faster (in amount of iterations), but simple schedule catches up and eventually reaches higher scores.
+Boosted power schedule dominates the simple method for this problem. It reaches higher coverage strictly faster.
 
 # Project annotation
 
