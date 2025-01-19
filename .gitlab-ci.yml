@@ -12,10 +12,14 @@ build-job:
     - cd fuzzer
     - make build
     - cd ..
+    - cd seed-generator
+    - make build
+    - cd ..
   artifacts:
     paths:
-      - "code-coverage/build/" # replace by the directory where the resulting binary is stored and everything needed to run it
-      - "fuzzer/build/" 
+      - "code-coverage/build/"
+      - "fuzzer/build/"
+      - "seed-generator/build/"
     expire_in: 1 hour
 
 task1-test:
@@ -113,3 +117,15 @@ task3-grade:
     - export PROJECT_DIR=$PWD
     - cd /grader
     - ./grade --task 3 $PROJECT_DIR/fuzzer
+
+task4-grade:
+  image:
+    name: pierredb/ni-apt-grader:latest
+    pull_policy: always
+  stage: test
+  #needs: ["test"]
+  script:
+    - export PROJECT_DIR=$PWD
+    - export SEEDS_SOURCE=smart
+    - cd /grader
+    - ./grade --task 4 $PROJECT_DIR/fuzzer

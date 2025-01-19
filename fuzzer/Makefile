@@ -4,11 +4,18 @@ CC = gcc
 # Directories
 
 PROJECT_DIR ?= $(shell dirname $(PWD))
-POWER_SCHEDULE ?= simple
-INPUT_SEEDS ?= $(PROJECT_DIR)/fuzzer/seeds/
+TASK1_DIR = $(PROJECT_DIR)/code-coverage
+TASK2_DIR = $(PROJECT_DIR)/fuzzer
+TASK4_DIR = $(PROJECT_DIR)/seed-generator
 
-BUILD_DIR = $(PROJECT_DIR)/fuzzer/build
-BUILD_DIR_TEST = $(PROJECT_DIR)/fuzzer/build/test
+BUILD_DIR = $(TASK2_DIR)/build
+BUILD_DIR_TEST = $(TASK2_DIR)/build/test
+
+#INPUT_SEEDS ?= $(PROJECT_DIR)/fuzzer/seeds/
+SEED_DIR = $(TASK2_DIR)/build/my-seeds
+
+POWER_SCHEDULE ?= simple
+
 
 # The 'build' target builds the program using CMake
 build:
@@ -28,23 +35,38 @@ test:
 
 # The 'run' target runs the code coverage tool on the C file(s) specified by the TARGET_COV environment variable
 blackbox: build
-	@echo "Build dir is $(BUILD_DIR)"
 	@echo "Running blacbox fuzzer on $(FUZZED_PROG) and placing results to $(RESULT_FUZZ)"
 	@cd $(BUILD_DIR) && ./fuzzer $(FUZZED_PROG) $(RESULT_FUZZ) $(MINIMIZE) $(INPUT) $(TIMEOUT) $(NB_KNOWN_BUGS)
 
 greybox: build
-	@echo "Build dir is $(BUILD_DIR)"
 	@echo "Running code coverage tool on files in $(FUZZED_PROG)/*.c"
 	@cd $(FUZZED_PROG) && $(BUILD_DIR)/../../code-coverage/build/code-coverage *.c
 	@cd $(FUZZED_PROG) && $(CC) *_instrumented_main.c -fsanitize=address -g -O0 -lm -o instr_prog
+	@rm $(FUZZED_PROG)/*_instrumented_main.c
 	@echo "Running greybox fuzzer on $(FUZZED_PROG) and placing results to $(RESULT_FUZZ)"
 	@cd $(FUZZED_PROG) && $(BUILD_DIR)/fuzzer instr_prog $(RESULT_FUZZ) $(MINIMIZE) $(INPUT) $(TIMEOUT) $(NB_KNOWN_BUGS) $(POWER_SCHEDULE) coverage.lcov 50 25 $(INPUT_SEEDS)
+	@rm $(FUZZED_PROG)/instr_prog
+
+greybox-smarter: build
+	@echo "Running a smarter version of greybox with analysis of the source code"
+	$(MAKE) prepare-seeds
+	$(MAKE) greybox
+	@rm -fr $(SEED_DIR)
+
+prepare-seeds:
+	@echo "Generating interesting seeds from source files..."
+	@mkdir -p $(SEED_DIR)
+	@cd $(TASK4_DIR) && $(MAKE) run
+	@if [ -d "$INPUT_SEEDS" ]; then echo "Directory $(INPUT_SEEDS) exists. Copying contents from $(INPUT_SEEDS) to $(SEED_DIR)...";cp $(INPUT_SEEDS)/* $(SEED_DIR)/; fi
 
 run:
 ifeq ($(FUZZER), blackbox)
 	$(MAKE) blackbox
 else
-	$(MAKE) greybox
+	ifeq ($(SEEDS_SOURCE), smart)
+		$(MAKE) greybox-smarter
+	else
+		$(MAKE) greybox
 endif
 
 clean:
