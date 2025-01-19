@@ -18,6 +18,8 @@ Given our testing, this makes for an improvement in each of programs. However, t
 
 Our improvement shows success in all programs - it manages to find 4 extra bugs, making all of them (14/14)! At one point it was, and maybe still is, the best result on the leaderboard.
 
+Note that this was achieved using the boosted power schedule, which was changed to default, unless specified.
+
 It is very easy for the program to find exploits of passphrases, various sizes of strings and specific numbers that are identified in the source code - this is what it was made to do.
 It is no suprise than that problems such as `buffer-overflow`, `minimization`, `infinite-loop` or even finding the secret passphrase in `string-length` pose no challange to our approach, and are usually found in under a second (after which they are minimized, which takes much more time).
 
