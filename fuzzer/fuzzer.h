@@ -1283,7 +1283,7 @@ static std::string loadFile(const std::filesystem::path& path)
     file.seekg(0, std::ios::beg);
     file.read(&res[0], res.size());
 
-    if (file.fail())// [[unlikely]]
+    if (file.fail()) [[unlikely]]
         throw std::runtime_error("Error reading file: " + path.string());
 
     return res;
@@ -1678,70 +1678,57 @@ struct fuzzer_greybox : public fuzzer
     template <bool alwaysInsert = false>
     void trySeed(seed * selected, std::string mutant)
     {
+        // Prepare input for execution
         executionInput->setInput(mutant);
 
+        // Execute the actual program
         auto res = execute_with_timeout(*executionInput);
 
+        // Check whether error occured, record it and minimize
         auto error = dealWithResult(mutant, res, *executionInput, false);
 
-        if (error)
-        {
-            coveragePath executedCoverage;
-            if (std::filesystem::exists(COVERAGE_FILE)) //Error occured, but we still got coverage path
-            {
-                auto lcov = loadFile(COVERAGE_FILE);
-                std::filesystem::remove(COVERAGE_FILE);
-
-                executedCoverage = coverage(lcov).second;
-            }
-            //else use empty path for all errors
-            auto it = queue->hashmap.emplace(std::move(executedCoverage), 0);
-            it.first->second++;;
-            const auto& executedCoverageOutput = it.first->first;
-            bool foundNewPath = it.second;
-            if (selected && foundNewPath)
-                selected->incrementImproved();
-            if (selected != nullptr)
-            {
-                // Update and return the original seed back to the queue
-                selected->update();
-                queue->weightedRandomChoiceReturn();
-            }
-            //Add new interesting seed (crashing)
-            if(alwaysInsert || foundNewPath)
-                queue->add(std::move(mutant), executedCoverageOutput, res.execution_time.count(), 2, 2);
-        }
-        else
+        // Load coverage from file
+        double executedCoveragePercent = 0;
+        coveragePath executedCoveragePath;
+        if (std::filesystem::exists(COVERAGE_FILE)) //Sometimes no coverage file is available (error etc.)
         {
             auto lcov = loadFile(COVERAGE_FILE);
             std::filesystem::remove(COVERAGE_FILE);
-            auto executedCoverageRes = coverage(lcov);
-            auto executedCoverage = executedCoverageRes.first;
-            auto it = queue->hashmap.emplace(std::move(executedCoverageRes.second), 0);
-            it.first->second++;;
-            const auto& executedCoverageOutput = it.first->first;
-            bool foundNewPath = it.second;
-            size_t ncInitial = 1;
-            if (selected && foundNewPath)
-            {
-                selected->incrementImproved();
-                ncInitial++;
-            }
-            if (selected != nullptr)
-            {
-                // Update and return the original seed back to the queue
-                selected->update();
-                queue->weightedRandomChoiceReturn();
-            }
-            //Add new interesting seed (new or different path)
-            if (alwaysInsert || foundNewPath)
-                queue->add(std::move(mutant), executedCoverageOutput, res.execution_time.count(), 2, 1);
 
-            if (executedCoverage > bestCoverage)
-            {
-                std::cerr << "Just improved coverage! From " << bestCoverage << " to " << executedCoverage << ". nb_runs=" << statisticsExecution.count() << std::endl;
-                bestCoverage = executedCoverage;
-            }
+            auto tmp = coverage(lcov);
+
+            executedCoveragePercent = std::move(tmp.first);
+            executedCoveragePath = std::move(tmp.second);
+        }
+        // else use empty path (for errors)
+
+        // Insert it into hashtable
+        auto it = queue->hashmap.emplace(std::move(executedCoveragePath), 0);
+        it.first->second++;;
+        const auto& recordedCoveragePath = it.first->first;
+        bool foundNewPath = it.second; // If this created a new element in the table
+
+        // If this mutant has a parent
+        if (selected != nullptr)
+        {
+            // Reward parent for finding a new path
+            if (foundNewPath)
+                selected->incrementImproved();
+
+            // Update and return the original seed back to the queue
+            selected->update();
+            queue->weightedRandomChoiceReturn();
+        }
+
+        // Add new interesting seed (crashing)
+        if (alwaysInsert || foundNewPath)
+            queue->add(std::move(mutant), recordedCoveragePath, res.execution_time.count(), 1, 1);
+
+        // Improve coverage score (if it wasn't error)
+        if (!error && executedCoveragePercent > bestCoverage)
+        {
+            std::cerr << "Just improved coverage! From " << bestCoverage << " to " << executedCoveragePercent << ". nb_runs=" << statisticsExecution.count() << std::endl;
+            bestCoverage = executedCoveragePercent;
         }
     }
 
