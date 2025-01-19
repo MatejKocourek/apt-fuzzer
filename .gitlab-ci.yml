@@ -118,7 +118,7 @@ task3-grade:
     - cd /grader
     - ./grade --task 3 $PROJECT_DIR/fuzzer
 
-grade-task4:
+task4-grade:
   image:
     name: pierredb/ni-apt-grader:latest
     pull_policy: always
