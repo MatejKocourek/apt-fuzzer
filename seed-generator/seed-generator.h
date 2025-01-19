@@ -22,8 +22,8 @@ class SeedGenerator {
 public:
 	std::unordered_set<std::string> constsStrings;
 	std::unordered_set<std::string> constsChars;
-	std::unordered_set<std::string> constsNumbersInts;
-	std::unordered_set<std::string> constsNumbersOther;
+	std::unordered_set<std::string> constsInts;
+	std::unordered_set<std::string> constsOthers;
 
 	static std::string_view nodeString(const std::string& source, const ts::Node& node)
 	{
@@ -90,13 +90,13 @@ public:
 			if (!std::isdigit(c) && c != '-')
 			{
 				// Number is a double or any other abomination
-				constsNumbersOther.emplace(string);
+				constsStrings.emplace(string);
 				return;
 			}
 		}
 
 		// Number is an integer
-		constsNumbersInts.emplace(string);
+		constsInts.emplace(string);
 	}
 
 	void parseRecursive(const std::string& sourcecode, const ts::Node& node)
@@ -118,10 +118,13 @@ public:
 				break;
 			case ts_symbol_identifiers::sym_preproc_include:
 				continue; // We don't want to record the include "code.h" files.
+			case ts_symbol_identifiers::sym_preproc_arg:
+				constsOthers.emplace(nodeString(sourcecode, child));
+				break;
 			default:
 			{
 				//if (child.getNumChildren() == 0)
-				//	std::cerr << "Encounter untested type: " << nodeString(sourcecode, child) << std::endl;
+					//std::cerr << "Encounter untested type: " << child.getType() << ':' << nodeString(sourcecode, child) << std::endl;
 				break;
 			}
 
@@ -150,6 +153,24 @@ public:
 		// Get the root node of the syntax tree. 
 
 		parseRecursive(sourcecode, tree.getRootNode());
+
+
+		for (const auto& i : constsOthers)
+		{
+			if (i.starts_with('\"') && i.ends_with('\"')) // This is probably a string
+				constsStrings.insert(escapeString(i));
+			if (i.starts_with('\'') && i.ends_with('\'')) // This is probably a char
+				constsChars.insert(escapeString(i));
+			else if (std::isdigit(i.at(0))) // This begins as integer. Take the integer value
+			{
+				size_t pos;
+				int64_t num = std::stoll(i, &pos);
+				constsInts.insert(std::to_string(num));
+
+				if(pos != i.size() && i[pos] == '.') // This is a float
+					constsStrings.insert(std::to_string(num)); // Treat floats as strings
+			}
+		}
 	}
 
 	void createSeeds(const std::filesystem::path& path) const
@@ -157,10 +178,11 @@ public:
 		std::unordered_set<std::string> strings(constsStrings);
 		size_t fileCount = 0;
 
+
 		// First, create seeds from all literals, no matter their type, as string
 		strings.insert(constsChars.begin(), constsChars.end());
-		strings.insert(constsNumbersInts.begin(), constsNumbersInts.end());
-		strings.insert(constsNumbersOther.begin(), constsNumbersOther.end());
+		strings.insert(constsInts.begin(), constsInts.end());
+		strings.insert(constsOthers.begin(), constsOthers.end());
 
 		//We don't want an empty string, delete it (if exists).
 		strings.erase("");
@@ -177,7 +199,7 @@ public:
 		}
 
 		// Now create strings of size the same as loaded ints (with a bound)
-		for (const auto& i : constsNumbersInts)
+		for (const auto& i : constsInts)
 		{
 			constexpr int64_t maxBound = 65536;
 
