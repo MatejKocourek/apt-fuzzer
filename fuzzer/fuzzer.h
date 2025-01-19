@@ -21,6 +21,7 @@
 #include <charconv>
 #include <iterator>
 
+// Undefine to capture stdout from running progarm
 //#define CAPTURE_STDOUT
 
 #ifdef _MSC_VER
@@ -32,8 +33,6 @@
 //thread_local std::random_device rd;  // Seed for the random number engine
 /*thread_local */std::mt19937 gen/*(rd())*/; // Mersenne Twister engine seeded with `rd`
 
-static const std::regex errorTypeRegex("ERROR: AddressSanitizer: (.*) on address");
-static const std::regex locationRegex("(main.c):(\\d+)");
 
 /// <summary>
 /// All random string generators
@@ -107,6 +106,10 @@ namespace generators {
         return res(gen);
     }
 
+    /// <summary>
+    /// Provides random seeds for fuzzers. Sometimes generates string, sometimes numbers.
+    /// </summary>
+    /// <returns></returns>
     static std::string generateRandomInput()
     {
         std::uniform_int_distribution<int> whichInput(0, 1);
@@ -128,12 +131,25 @@ namespace generators {
     }
 }
 
-std::ostream& escapeHex(std::ostream& out, char c)
+/// <summary>
+/// Escape a character as a unicode symbol (for unsupported characters)
+/// </summary>
+/// <param name="out">Output stream to escape to</param>
+/// <param name="c">Char to escape</param>
+/// <returns>Output stream from argument</returns>
+static std::ostream& escapeUnicode(std::ostream& out, char c)
 {
+    // save default formatting
+    std::ios init(NULL);
+    init.copyfmt(out);
+
     out << "\\u00"
         << std::hex << std::uppercase // Use uppercase for letters in hex
         << std::setw(2) << std::setfill('0') // Ensures 2-digit output
         << static_cast<int>(static_cast<unsigned char>(c));
+
+    out.copyfmt(init);
+
     return out;
 }
 
@@ -143,16 +159,16 @@ std::ostream& escapeHex(std::ostream& out, char c)
 /// <param name="out">Output stream to escape to</param>
 /// <param name="c">Character to escape</param>
 /// <returns>Output stream from argument</returns>
-std::ostream& escape(std::ostream& out, char c)
+static std::ostream& escape(std::ostream& out, char c)
 {
     unsigned char uchar = static_cast<unsigned char>(c);
     if (uchar > 126 || uchar < 8 || (uchar < 32 && uchar > 13))
-        return escapeHex(out, c);
+        return escapeUnicode(out, c);
 
     switch (c)
     {
     case '\v':
-        escapeHex(out, c);
+        escapeUnicode(out, c);
         break;
     case '\b':
         out << "\\b";
@@ -186,7 +202,7 @@ std::ostream& escape(std::ostream& out, char c)
 /// <param name="out">Output stream to escape to</param>
 /// <param name="str">String to escape</param>
 /// <returns>Output stream from argument</returns>
-std::ostream& escape(std::ostream& out, const std::string_view& str)
+static std::ostream& escape(std::ostream& out, const std::string_view& str)
 {
     for (const auto& c : str)
     {
@@ -239,7 +255,7 @@ namespace mutators {
     /// </summary>
     void insertDigit(std::string& input)
     {
-        std::uniform_int_distribution<size_t> distChar(0, 9);
+        std::uniform_int_distribution<int> distChar(0, 9);
 
         std::uniform_int_distribution<size_t> distStart(0, input.size());
         size_t blockStart = distStart(gen);
@@ -287,7 +303,7 @@ namespace mutators {
 
         for (const auto& c : input)
         {
-            if (!isdigit(c))
+            if (!isdigit(c)) // Only change strings that are fully numeric
                 return;
         }
         auto num = std::stoll(input);
@@ -377,7 +393,9 @@ namespace mutators {
     }
 }
 
-static size_t currentAsanOffset = 0;
+static size_t currentAsanOffset = 0; // Workaround for coverage tool skewing the line numbers
+static const std::regex errorTypeRegex("ERROR: AddressSanitizer: (.*) on address");
+static const std::regex locationRegex("(main.c):(\\d+)");
 
 /// <summary>
 /// Represents the base class for black/grey box fuzzing
@@ -1061,7 +1079,7 @@ struct fuzzer {
     /// <param name="result">Result of the runner</param>
     /// <param name="executionInput">Where to test inputs</param>
     /// <param name="fromMin">Is this random or from minimization</param>
-    /// <returns>Pointer to erorr if occured. Do not free.</returns>
+    /// <returns>Pointer to erorr if occured. Owned by result vector. Do not free!</returns>
     DetectedError* dealWithResult(const std::string_view& input, ExecutionResult result, ExecutionInput& executionInput, bool fromMin = false)
     {
         CrashReport report;
@@ -1096,7 +1114,7 @@ struct fuzzer {
             nb_before_min.fetch_add(1, std::memory_order_relaxed);
 
         report.nb_steps = 0;
-        report.unminimized_size = input.size();// + 1;
+        report.unminimized_size = input.size();
 
         report.execution_time = result.execution_time;
         report.detectedError = uniqueResults[errorCount].get();
@@ -1157,7 +1175,10 @@ public:
     void run()
     {
         currentAsanOffset = asanOffset();
+
         std::atomic<bool> threadsRunning = true;
+
+        // Thread for updating the stats in real-time
         std::jthread updateStats([&]() {
             uint8_t counter = 0;
             while (threadsRunning)
@@ -1173,7 +1194,8 @@ public:
             saveStatistics();
             });
 
-        std::jthread worker([&]() {
+        // Thread for terminating the process if it runs for too long
+        std::jthread timeoutThread([&]() {
             const auto start = std::chrono::high_resolution_clock::now();
             const auto timeout = TIMEOUT - std::chrono::seconds(1);
             while (std::chrono::duration_cast<std::chrono::seconds>(std::chrono::high_resolution_clock::now() - start) < timeout && keepRunning)
@@ -1187,6 +1209,8 @@ public:
 
         try
         {
+            // Run the actual fuzzing. Ready for multiple threads of execution, but not implemented.
+
             std::vector<std::jthread> threads;
             auto threadCount = 1;// std::thread::hardware_concurrency();
 
@@ -1214,8 +1238,20 @@ public:
 
 };
 
+/// <summary>
+/// Fuzzer that does not have any information about the file it is fuzzing
+/// </summary>
 struct fuzzer_blackbox : public fuzzer
 {
+    /// <summary>
+    /// Fuzzer that does not have any information about the file it is fuzzing
+    /// </summary>
+    /// <param name="FUZZED_PROG">Path to the executable the fuzzer will be running</param>
+    /// <param name="RESULT_FUZZ">Path to a folder where crashes will be saved</param>
+    /// <param name="MINIMIZE">If the fuzzer should minimize crashing inputs</param>
+    /// <param name="INPUT">Input method for given executable. "stdin" if through standard input, file name otherwise.</param>
+    /// <param name="TIMEOUT">Time passed before the fuzzer is stopped</param>
+    /// <param name="NB_KNOWN_BUGS">After the fuzzer finds this many bugs, it terminates.</param>
     fuzzer_blackbox(std::filesystem::path FUZZED_PROG, std::filesystem::path RESULT_FUZZ, bool MINIMIZE, std::string_view INPUT, std::chrono::seconds TIMEOUT, size_t NB_KNOWN_BUGS/*, size_t minSize = 1, size_t maxSize = 1024*/) : fuzzer(std::move(FUZZED_PROG), std::move(RESULT_FUZZ), std::move(MINIMIZE), std::move(INPUT), std::move(TIMEOUT), std::move(NB_KNOWN_BUGS))//, minSize(minSize), maxSize(maxSize)
     {
 
@@ -1256,10 +1292,11 @@ struct fuzzer_blackbox : public fuzzer
     }
 };
 
-static const std::regex linesFound("LF:(\\d+)");
-static const std::regex linesHit("LH:(\\d+)");
-static const std::regex regexFilename("SF:(.+)");
-
+/// <summary>
+/// Load the whole file into a string
+/// </summary>
+/// <param name="path">Path to the file</param>
+/// <returns>Contents of given file</returns>
 static std::string loadFile(const std::filesystem::path& path)
 {
     auto file = std::ifstream(path, std::ios::in |std::ios::binary);
@@ -1279,14 +1316,16 @@ static std::string loadFile(const std::filesystem::path& path)
     return res;
 }
 
+/// <summary>
+/// Fuzzer that works with source code of fuzzing file
+/// </summary>
 struct fuzzer_greybox : public fuzzer
 {
     typedef std::vector<bool> coveragePath;
 
-
     virtual size_t asanOffset() const override
     {
-        return 4;
+        return 4; // Our tool has this offset
     }
 
     enum class POWER_SCHEDULE_T : uint8_t
@@ -1295,13 +1334,25 @@ struct fuzzer_greybox : public fuzzer
         boosted
     };
 
+    /// <summary>
+    /// Seed that fuzzer keeps in queue
+    /// </summary>
     struct seed
     {
         seed(std::string input) : input(std::move(input)) {};
         const std::string input;
 
+        /// <summary>
+        /// Increment the counter for this seed counting how many times it was selected (if needed)
+        /// </summary>
         virtual void incrementSelected() = 0;
+        /// <summary>
+        /// Increment the counter for this seed counting how many times it improved the coverage (if needed)
+        /// </summary>
         virtual void incrementImproved() = 0;
+        /// <summary>
+        /// Update the energy of this seed from set information.
+        /// </summary>
         virtual void update() = 0;
         virtual ~seed() = default;
     };
@@ -1314,6 +1365,13 @@ struct fuzzer_greybox : public fuzzer
         size_t nm; // how many times it was already selected to be mutated
         size_t nc; // how many times it led to an increase in coverage
 
+        /// <summary>
+        /// Seed for the simple power method
+        /// </summary>
+        /// <param name="input">String that should be associated with this seed</param>
+        /// <param name="T">Time it took to execute this seed</param>
+        /// <param name="nm">How many times it was already selected to be mutated</param>
+        /// <param name="nc">How many times it led to an increase in coverage</param>
         seedSimple(std::string input, double T, size_t nm = 1, size_t nc = 1) : seed(std::move(input)), T(T), nm(nm), nc(nc)
         {
             e = power();
@@ -1348,6 +1406,11 @@ struct fuzzer_greybox : public fuzzer
     {
         const coveragePath& h; //hash of the output
 
+        /// <summary>
+        /// Seed for the boosted power method
+        /// </summary>
+        /// <param name="input">String that should be associated with this seed</param>
+        /// <param name="h">Path that is executed when this seed is run</param>
         seedBoosted(std::string input, const coveragePath& h) : seed(std::move(input)), h(h)
         {
         }
@@ -1359,26 +1422,56 @@ struct fuzzer_greybox : public fuzzer
 
         virtual void incrementSelected() override final
         {
+            // Do nothing
         }
 
         virtual void incrementImproved() override final
         {
+            // Do nothing
         }
 
         virtual void update() override final
         {
+            // Do nothing (will be done when selecting)
         }
         virtual ~seedBoosted() = default;
     };
 
     struct powerStructure
     {
+        /// <summary>
+        /// Add new seed into the queue
+        /// </summary>
+        /// <param name="input">String that was fuzzed and should be recorded</param>
+        /// <param name="h">Associated output path from the program</param>
+        /// <param name="T">Runtime for this input</param>
+        /// <param name="nm">How many times it was selected</param>
+        /// <param name="nc">How many times it led to increased coverage</param>
         virtual void add(std::string input, const coveragePath& h, double T, size_t nm = 1, size_t nc = 1) = 0;
+
+        /// <summary>
+        /// Size of the queue
+        /// </summary>
         virtual size_t size() const = 0;
+
+        /// <summary>
+        /// Retrives seed at given index
+        /// </summary>
+        /// <param name="n">Index</param>
+        /// <returns>Constant reference to the element</returns>
         virtual const seed& at(size_t n) = 0;
-        //virtual const seed& weightedRandomChoice() const = 0;
+
+        /// <summary>
+        /// Perform a weighted random choice and borrow the seed, expecting to return it
+        /// </summary>
+        /// <returns>Reference to the selected seed</returns>
         virtual seed& weightedRandomChoiceBorrow() = 0;
+
+        /// <summary>
+        /// Return borrowed seed (must be done before borrowing a new one!)
+        /// </summary>
         virtual void weightedRandomChoiceReturn() = 0;
+
         virtual ~powerStructure() = default;
 
         std::unordered_map<coveragePath, size_t> hashmap;
@@ -1386,6 +1479,10 @@ struct fuzzer_greybox : public fuzzer
 
     struct powerSimple : public powerStructure
     {
+        // Currently borrowed seed. Store in in this way to avoid copying.
+        std::pair<std::multiset<seedSimple>::node_type, std::multiset<seedSimple>::const_iterator> borrowed;
+
+    public:
         void add(std::string input, double T, size_t nm = 1, size_t nc = 1)
         {
             queue.emplace(std::move(input), T, nm, nc);
@@ -1400,34 +1497,31 @@ struct fuzzer_greybox : public fuzzer
         }
         virtual const seed& at(size_t n) override
         {
+            // Cannot access directly, needs to jump over LL
             auto it = queue.cbegin();
             std::advance(it, n);
             return *it;
         }
 
-        std::pair<std::multiset<seedSimple>::node_type, std::multiset<seedSimple>::const_iterator> borrowed;
-
         virtual seed& weightedRandomChoiceBorrow() override
         {
-            if (!borrowed.first.empty())// [[unlikely]]
+            if (!borrowed.first.empty()) [[unlikely]]
                 throw std::runtime_error("Attempted to borrow another seed without returning previous one!");
 
+            // Store the random choice in this structure, and give reference to it
             borrowed = weightedRandomChoiceExtract();
             return borrowed.first.value();
         }
         virtual void weightedRandomChoiceReturn() override
         {
-            queue.insert(borrowed.second,std::move(borrowed.first));
+            queue.insert(borrowed.second, std::move(borrowed.first));
         }
         virtual ~powerSimple() = default;
 
         /// <summary>
         /// Weighted random choice of a seed, where some portion of best seeds will be given 50% choice be selected
         /// </summary>
-        /// <typeparam name="extract">Whether the function should remove the seed from the queue</typeparam>
-        /// <param name="options">Queue to select from</param>
-        /// <param name="percent">How many seeds will be given priority</param>
-        /// <returns>Selected seed, extracted or copied</returns>
+        /// <returns>Selected seed extracted from the queue</returns>
         std::pair<std::multiset<seedSimple>::node_type, std::multiset<seedSimple>::const_iterator> weightedRandomChoiceExtract()
         {
             if (queue.empty()) [[unlikely]]
@@ -1450,9 +1544,9 @@ struct fuzzer_greybox : public fuzzer
             size_t i = 0;
             for (auto it = queue.cbegin(); it != queue.cend(); it++) {
                 if (i <= firstTenPercent)
-                    cumulativeWeight += coefficientGood;// cumulativeWeight += it->e * coefficientGood; // Better score
+                    cumulativeWeight += coefficientGood;// Better score
                 else
-                    cumulativeWeight += coefficientWorse;// cumulativeWeight += it->e * coefficientWorse; // Worse score
+                    cumulativeWeight += coefficientWorse;// Worse score
 
                 if (randomValue <= cumulativeWeight) {
                     auto nextIt = it++;
@@ -1467,6 +1561,7 @@ struct fuzzer_greybox : public fuzzer
 
         std::multiset<seedSimple> queue;
     };
+
     struct powerBoosted : public powerStructure
     {
         bool isBorrowed = false;
@@ -1474,7 +1569,7 @@ struct fuzzer_greybox : public fuzzer
         void add(std::string input, const coveragePath& h)
         {
             if(isBorrowed) [[unlikely]]
-                throw std::logic_error("Cannot add to queue with borrowed element");
+                throw std::logic_error("Cannot add to queue with borrowed element"); // Else it could cause reallocation of vector memory and this damned bug would be so difficult to find that you would spend your whole day finding it and not doing anythine else ask me how I know
             queue.emplace_back(std::move(input), h);
         }
         virtual void add(std::string input, const coveragePath& h, double T, size_t nm = 1, size_t nc = 1) override
@@ -1506,9 +1601,7 @@ struct fuzzer_greybox : public fuzzer
         /// <summary>
         /// Weighted random choice of a seed
         /// </summary>
-        /// <typeparam name="extract">Whether the function should remove the seed from the queue</typeparam>
-        /// <param name="options">Queue to select from</param>
-        /// <returns>Selected seed, extracted or copied</returns>
+        /// <returns>Reference to the selected seed</returns>
         virtual seed& weightedRandomChoice()
         {
             if (queue.empty()) [[unlikely]]
@@ -1541,6 +1634,10 @@ struct fuzzer_greybox : public fuzzer
         std::vector<seedBoosted> queue;
     };
 
+    /// <summary>
+    /// Joins random number of seeds together, possible with delimiters
+    /// </summary>
+    /// <param name="input"></param>
     void createMashups(std::string& input)
     {
         std::exponential_distribution<float> distVal(0.5);
@@ -1571,27 +1668,17 @@ struct fuzzer_greybox : public fuzzer
         }
     }
 
+    /// <summary>
+    /// Perform generation of a new mutant. Given the chance from the constructor, also splice/join multiple existing seeds together.
+    /// </summary>
+    /// <param name="input"></param>
+    /// <returns></returns>
     std::string randomNumberOfRandomMutants(std::string input)
     {
         if (generators::randomFloat() < concatenatedness)
-        {
-            createMashups(input);
-            //std::exponential_distribution<double> distVal(1);
-            //size_t numToJoin = 1 + distVal(gen);
-
-            //for (size_t i = 0; i < numToJoin; i++)
-            //{
-            //    auto it = queue.cbegin();
-            //    std::advance(it, generators::randomInt(queue.size()));
-
-            //    if (generators::randomFloat() < 0.5)
-            //        mutators::concatWithNewl(input, it->input);
-            //    else
-            //        mutators::concat(input, it->input);
-            //}
-        }
+            createMashups(input); // Perform joining
         else
-            mutators::randomNumberOfRandomMutants(input);
+            mutators::randomNumberOfRandomMutants(input); // Perform mutation
 
         return input;
     }
@@ -1613,10 +1700,12 @@ struct fuzzer_greybox : public fuzzer
         out << '}';
     }
 
-    double bestCoverage = 0;
-
-
-
+    /// <summary>
+    /// Get line from the input, split by the delimiter
+    /// </summary>
+    /// <param name="str">String to read from. Will be eaten</param>
+    /// <param name="delimiter">Delimiter to read line to. Will be removed from input</param>
+    /// <returns>Read line, without delimiter</returns>
     static std::string_view getLine(std::string_view& str, char delimiter='\n')
     {
         size_t i = 0;
@@ -1652,18 +1741,18 @@ struct fuzzer_greybox : public fuzzer
             }
 
             while (str.starts_with("DA:"))
-        {
+            {
                 getLine(str, ','); // Eat up to the comma
                 std::string_view numStr = getLine(str, '\n'); // Get the number
-            size_t countHit;
-            std::from_chars(numStr.data(), numStr.data() + numStr.size(), countHit);
-            res.second.push_back(countHit > 0);
+                size_t countHit;
+                std::from_chars(numStr.data(), numStr.data() + numStr.size(), countHit); // Parse number
+                res.second.push_back(countHit > 0);
                 if (countHit > 0)
-                covered++;
-        }
+                    covered++;
+            }
         }
         foundEverything:
-        
+
         size_t total = res.second.size();
 
         res.first = static_cast<double>(covered) / total;
@@ -1734,8 +1823,8 @@ struct fuzzer_greybox : public fuzzer
         }
     }
 
-    const float greyness;
-    const float concatenatedness;
+    std::unique_ptr<powerStructure> queue;
+    double bestCoverage = 0;
 
     virtual void fuzz() override
     {
@@ -1799,7 +1888,7 @@ struct fuzzer_greybox : public fuzzer
     /// </summary>
     void populateWithMySeeds(size_t loadSize = 1000)
     {
-        std::cerr << "Populating folder with my seeds" << std::endl;
+        std::cerr << "Populating folder with my seed" << std::endl;
         std::filesystem::create_directories(INPUT_SEEDS);
 
         for (size_t i = 0; i < loadSize; i++)
@@ -1808,9 +1897,7 @@ struct fuzzer_greybox : public fuzzer
             std::ofstream outFile(path);
             outFile << generators::generateRandomInput();
         }
-
     }
-    std::unique_ptr<powerStructure> queue;
 
     fuzzer_greybox(std::filesystem::path FUZZED_PROG, std::filesystem::path RESULT_FUZZ, bool MINIMIZE, std::string_view INPUT, std::chrono::seconds TIMEOUT, size_t NB_KNOWN_BUGS, POWER_SCHEDULE_T POWER_SCHEDULE, std::filesystem::path COVERAGE_FILE, float greyness, float concatenatedness, std::filesystem::path INPUT_SEEDS) : fuzzer(std::move(FUZZED_PROG), std::move(RESULT_FUZZ), std::move(MINIMIZE), std::move(INPUT), std::move(TIMEOUT), std::move(NB_KNOWN_BUGS)), POWER_SCHEDULE(std::move(POWER_SCHEDULE)), COVERAGE_FILE(std::move(COVERAGE_FILE)), INPUT_SEEDS(std::move(INPUT_SEEDS)), greyness(std::move(greyness)), concatenatedness(std::move(concatenatedness))
     {
@@ -1835,4 +1922,7 @@ struct fuzzer_greybox : public fuzzer
     const POWER_SCHEDULE_T POWER_SCHEDULE;
     const std::filesystem::path INPUT_SEEDS;
     const std::filesystem::path COVERAGE_FILE;
+
+    const float greyness;
+    const float concatenatedness;
 };
