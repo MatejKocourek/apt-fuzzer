@@ -58,7 +58,7 @@ greybox-smarter: build
 	@echo "Running a smarter version of greybox fuzzer with analysis of the source code"
 	@$(MAKE) prepare-seeds
 	@$(MAKE) prepare-coverage
-	@cd $(FUZZED_PROG) && $(BUILD_DIR)/fuzzer instr_prog $(RESULT_FUZZ) $(MINIMIZE) $(INPUT) $(TIMEOUT) $(NB_KNOWN_BUGS) $(POWER_SCHEDULE) coverage.lcov 10 50 $(SEED_DIR)
+	@cd $(FUZZED_PROG) && $(BUILD_DIR)/fuzzer instr_prog $(RESULT_FUZZ) $(MINIMIZE) $(INPUT) $(TIMEOUT) 0 $(POWER_SCHEDULE) coverage.lcov 10 50 $(SEED_DIR)
 	@rm -fr $(SEED_DIR)
 
 prepare-seeds:
@@ -70,10 +70,10 @@ prepare-seeds:
 run:
 	@if [ "$(FUZZER)" = "blackbox" ]; then \
 		$(MAKE) blackbox; \
-	elif [ "$(SEEDS_SOURCE)" = "smart" ]; then \
-		$(MAKE) greybox-smarter; \
-	else \
+	elif [ "$(SEEDS_SOURCE)" = "preset" ]; then \
 		$(MAKE) greybox; \
+	else \
+		$(MAKE) greybox-smarter; \
 	fi
 
 clean:

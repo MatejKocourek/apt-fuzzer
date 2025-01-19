@@ -115,6 +115,7 @@ task3-grade:
   #needs: ["task2-test"]
   script:
     - export PROJECT_DIR=$PWD
+    - export SEEDS_SOURCE=preset
     - cd /grader
     - ./grade --task 3 $PROJECT_DIR/fuzzer
 
