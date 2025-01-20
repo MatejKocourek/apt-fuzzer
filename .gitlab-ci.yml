@@ -99,6 +99,7 @@ task2-grade:
   #needs: ["task2-test"]
   script:
     - export PROJECT_DIR=$PWD
+    - export FUZZER=blackbox
     - cd /grader
     - ./grade --task 2 $PROJECT_DIR/fuzzer
 
@@ -115,7 +116,7 @@ task3-grade:
   #needs: ["task2-test"]
   script:
     - export PROJECT_DIR=$PWD
-    - export SEEDS_SOURCE=preset
+    - export FUZZER=greybox
     - cd /grader
     - ./grade --task 3 $PROJECT_DIR/fuzzer
 
@@ -133,6 +134,6 @@ task4-grade:
   #needs: ["test"]
   script:
     - export PROJECT_DIR=$PWD
-    - export SEEDS_SOURCE=smart
+    - export FUZZER=best
     - cd /grader
     - ./grade --task 4 $PROJECT_DIR/fuzzer

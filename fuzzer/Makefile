@@ -68,7 +68,7 @@ prepare-seeds:
 run:
 	@if [ "$(FUZZER)" = "blackbox" ]; then \
 		$(MAKE) blackbox; \
-	elif [ "$(SEEDS_SOURCE)" = "preset" ]; then \
+	elif [ "$(FUZZER)" = "greybox" ]; then \
 		$(MAKE) greybox; \
 	else \
 		$(MAKE) greybox-smarter; \
