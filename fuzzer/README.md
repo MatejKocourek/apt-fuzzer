@@ -4,6 +4,8 @@ Welcome to my fuzzer project repository.
 
 All 4 tasks are implemented. To provide no regression, all 4 tasks work from the main branch, no tags neccessary. The fuzzer is configurable from the command line, see makefile in the fuzzer directory.
 
+HTML coverage files are provided for all folders.
+
 To see descriptions of the problems and how they were tackled, see individual READMEs in this directory for tasks 2, 3 and 4, and directory code-coverage for task 1.
 
 # Project annotation
