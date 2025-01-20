@@ -51,18 +51,16 @@ Build code-coverage and seed-generator before running new version of the fuzzer.
 
 Line coverage:
 - 78% for the fuzzer project (sharing with task 2 and 3)
-- x% for the seed-generator
-
+- 91% for the seed-generator
 
 ### Property-based testing
 
-Indicate in which file(s) you have the property-based tests.
+Property-based testing can be found in file `tests-property.cpp`. It is using the RapidCheck software, which is included as a submodule.
 
 ### Mutation testing
 
 Mutation score:
 - 60% for the fuzzer project (sharing with task 3)
-- x% for the seed-generator
 
 Mutation testing heavily depends on randomness.
 

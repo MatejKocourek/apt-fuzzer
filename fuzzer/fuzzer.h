@@ -54,20 +54,21 @@ namespace generators {
         return randomString;
     }
 
-    std::string generateRandomString(std::size_t size, int minChar, int maxChar) {
+    char generateRandomChar(uint8_t minChar = 32, uint8_t maxChar = 126) {
         if (minChar > maxChar) [[unlikely]]
             throw std::invalid_argument("min must be less than or equal to max");
 
         std::uniform_int_distribution<int> dist(minChar, maxChar);
 
+        return dist(gen);
+    }
+
+    std::string generateRandomString(uint8_t minChar, uint8_t maxChar, std::size_t size) {
         std::string randomString;
         randomString.reserve(size);
 
-        for (std::size_t i = 0; i < size; ++i) {
-            char tmp = dist(gen);
-
-            randomString += tmp; // Generate a random character
-        }
+        for (std::size_t i = 0; i < size; ++i)
+            randomString += generateRandomChar(minChar, maxChar);
 
         return randomString;
     }
@@ -122,7 +123,7 @@ namespace generators {
         switch (whichInput(gen))
         {
         case 0:
-            return generators::generateRandomString(dist(gen), 33, 126);
+            return generators::generateRandomString(33, 126, dist(gen));
         case 1:
             return generators::generateRandomNum(1, 1000000);
         default:
@@ -253,7 +254,7 @@ namespace mutators {
         std::uniform_int_distribution<size_t> distStart(0, input.size());
         size_t blockStart = distStart(gen);
 
-        input.insert(blockStart, generators::generateRandomString(blockLen, 32, 126));
+        input.insert(blockStart, generators::generateRandomString(32, 126, blockLen));
     }
 
     /// <summary>
@@ -338,10 +339,8 @@ namespace mutators {
 
         charToChange ^= (1 << distBit(gen));
 
-        if ((uint8_t)charToChange < 32)
-            charToChange += 32;
-        if ((uint8_t)charToChange == 127)
-            charToChange = 126;
+        if (!isJsonAllowedOrEscapeable(charToChange)) [[unlikely]] // The change resulted in non-printable ASCI
+            charToChange = generators::generateRandomChar();
     }
 
     /// <summary>
@@ -360,12 +359,9 @@ namespace mutators {
         char& charToChange = input[distPos(gen)];
 
         charToChange += val;
-        charToChange &= 0b01111111;
 
-        if ((uint8_t)charToChange < 32)
-            charToChange += 32;
-        if ((uint8_t)charToChange == 127)
-            charToChange = 126;
+        if (!isJsonAllowedOrEscapeable(charToChange)) [[unlikely]] // The change resulted in non-printable ASCI
+            charToChange = generators::generateRandomChar();
     }
 
     /// <summary>

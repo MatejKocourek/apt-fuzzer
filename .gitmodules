@@ -7,3 +7,6 @@
 [submodule "code-coverage/cpp-tree-sitter"]
 	path = code-coverage/cpp-tree-sitter
 	url = https://github.com/nsumner/cpp-tree-sitter.git
+[submodule "external/rapidcheck"]
+	path = external/rapidcheck
+	url = https://github.com/emil-e/rapidcheck.git
