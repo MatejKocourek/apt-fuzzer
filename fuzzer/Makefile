@@ -81,7 +81,7 @@ greybox-smarter:
 	@echo "Running a smarter version of greybox fuzzer with analysis of the source code"
 	@$(MAKE) prepare-seeds
 	@$(MAKE) prepare-coverage
-	@cd $(FUZZED_PROG) && $(BUILD_DIR)/fuzzer instr_prog $(RESULT_FUZZ) $(MINIMIZE) $(INPUT) $(TIMEOUT) 0 $(POWER_SCHEDULE) coverage.lcov 0 50 $(FUZZED_PROG)/generated-seeds/
+	@cd $(FUZZED_PROG) && $(BUILD_DIR)/fuzzer instr_prog $(RESULT_FUZZ) $(MINIMIZE) $(INPUT) $(TIMEOUT) $(NB_KNOWN_BUGS) $(POWER_SCHEDULE) coverage.lcov 0 75 $(FUZZED_PROG)/generated-seeds/
 
 prepare-seeds:
 	@echo "Generating interesting seeds from source files..."
