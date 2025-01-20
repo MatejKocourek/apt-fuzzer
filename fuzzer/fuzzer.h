@@ -1305,7 +1305,7 @@ struct fuzzer_blackbox : public fuzzer
 /// <returns>Contents of given file</returns>
 static std::string loadFile(const std::filesystem::path& path)
 {
-    auto file = std::ifstream(path, std::ios::in | std::ios::binary);
+    auto file = std::ifstream(path, std::ios::binary);
 
     if (!file.is_open()) [[unlikely]]
         throw std::runtime_error("Cannot open file: " + path.string());
