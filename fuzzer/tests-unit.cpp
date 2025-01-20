@@ -348,8 +348,8 @@ TEST(Power, powerSimple) {
 	fuzzer_greybox::coveragePath hash;
 	power.hashmap.emplace(hash, 1);
 
-	power.add(input, hash, 1, 1);
-	power.add(input, hash, 1, 1);
+	power.add(input, hash, 1, 1, 1);
+	power.add(input, hash, 1, 1, 1);
 	ASSERT_EQ(power.size(), 2);
 
 	EXPECT_EQ(input, power.at(0).input);
@@ -359,6 +359,12 @@ TEST(Power, powerSimple) {
 
 	choice.incrementSelected();
 	choice.update();
+
+	ASSERT_EQ(typeid(choice), typeid(fuzzer_greybox::seedSimple));
+
+	const fuzzer_greybox::seedSimple& seed = static_cast<const fuzzer_greybox::seedSimple&>(choice);
+
+	EXPECT_EQ(seed.e, 0.125);
 
 	power.weightedRandomChoiceReturn();
 
@@ -372,8 +378,8 @@ TEST(Power, powerBoosted) {
 	fuzzer_greybox::coveragePath hash;
 	power.hashmap.emplace(hash, 1);
 
-	power.add(input, hash, 1, 1);
-	power.add(input, hash, 1, 1);
+	power.add(input, hash, 1, 1, 1);
+	power.add(input, hash, 1, 1, 1);
 	ASSERT_EQ(power.size(), 2);
 
 	EXPECT_EQ(input, power.at(0).input);
@@ -383,6 +389,12 @@ TEST(Power, powerBoosted) {
 
 	choice.incrementSelected();
 	choice.update();
+
+	ASSERT_EQ(typeid(choice), typeid(fuzzer_greybox::seedBoosted));
+
+	const fuzzer_greybox::seedBoosted& seed = static_cast<const fuzzer_greybox::seedBoosted&>(choice);
+
+	EXPECT_EQ(seed.power(power.hashmap), 1.0);
 
 	power.weightedRandomChoiceReturn();
 
