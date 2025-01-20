@@ -33,8 +33,8 @@ run: build
 clean:
 	@echo "Cleaning build..."
 	@rm -fr $(TASK4_BUILD_DIR_TEST)
-	@rm $(TASK4_DIR)/cpp-tree-sitter
-	@rm $(TASK4_DIR)/tree-sitter
-	@rm $(TASK4_DIR)/tree-sitter-c
-	@rm $(TASK4_DIR)/symbol-identifiers.h
+	@rm -f $(TASK4_DIR)/cpp-tree-sitter
+	@rm -f $(TASK4_DIR)/tree-sitter
+	@rm -f $(TASK4_DIR)/tree-sitter-c
+	@rm -f $(TASK4_DIR)/symbol-identifiers.h
 	@rm -fr $(TASK4_BUILD_DIR)
