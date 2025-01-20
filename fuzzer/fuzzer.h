@@ -132,6 +132,12 @@ namespace generators {
     }
 }
 
+bool isJsonAllowedOrEscapeable(char c)
+{
+    unsigned char uchar = static_cast<unsigned char>(c);
+    return !(uchar > 126 || uchar < 8 || uchar == 11 || (uchar < 32 && uchar > 13));
+}
+
 /// <summary>
 /// Escape a character as a unicode symbol (for unsupported characters)
 /// </summary>
@@ -162,15 +168,11 @@ static std::ostream& escapeUnicode(std::ostream& out, char c)
 /// <returns>Output stream from argument</returns>
 static std::ostream& escape(std::ostream& out, char c)
 {
-    unsigned char uchar = static_cast<unsigned char>(c);
-    if (uchar > 126 || uchar < 8 || (uchar < 32 && uchar > 13))
+    if(!isJsonAllowedOrEscapeable(c))
         return escapeUnicode(out, c);
 
     switch (c)
     {
-    case '\v':
-        escapeUnicode(out, c);
-        break;
     case '\b':
         out << "\\b";
         break;
@@ -210,12 +212,6 @@ static std::ostream& escape(std::ostream& out, const std::string_view& str)
         escape(out, c);
     }
     return out;
-}
-
-bool isJsonAllowedOrEscapeable(char c)
-{
-    unsigned char uchar = static_cast<unsigned char>(c);
-    return !(uchar > 126 || uchar < 8 || uchar == 11 || (uchar < 32 && uchar > 13));
 }
 
 /// <summary>

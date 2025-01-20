@@ -41,9 +41,7 @@ This ensures that required libraries are available for the compilation process.
 
 Also install packages: `make cmake g++ git libboost-all-dev libgtest-dev curl llvm-17 clang-17 mull-17`
 
-Look in CI file to see how to, if problematic. Mull requires a setup, but you don't need it if you won't be mutating.
-
-Build code-coverage and seed-generator before running new version of the fuzzer.
+Look in CI file to see how to, if problematic. Mull requires a setup script, but you don't need it if you won't be mutation testing.
 
 ## Testing
 
@@ -60,9 +58,9 @@ Property-based testing can be found in file `tests-property.cpp`. It is using th
 ### Mutation testing
 
 Mutation score:
-- 60% for the fuzzer project (sharing with task 3)
+- 65% for the fuzzer project (sharing with task 3)
 
-Mutation testing heavily depends on randomness.
+Mutation testing heavily depends on randomness. Value is around 65% +- 10%.
 
 ```
 /builds/kocoumat/apt-2024/fuzzer/fuzzer.h:1382:22: warning: Survived: Replaced > with >= [cxx_gt_to_ge]

@@ -46,9 +46,9 @@ Line coverage: 78% (sharing with task 2 and 4)
 
 ### Mutation testing
 
-Mutation score: 60%
+Mutation score: 65%
 
-Mutation testing heavily depends on randomness. Value is around 60% +- 10%.
+Mutation testing heavily depends on randomness. Value is around 65% +- 10%.
 
 ```
 /builds/kocoumat/apt-2024/fuzzer/fuzzer.h:1382:22: warning: Survived: Replaced > with >= [cxx_gt_to_ge]
