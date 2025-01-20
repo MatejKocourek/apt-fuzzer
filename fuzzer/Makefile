@@ -12,7 +12,6 @@ BUILD_DIR = $(TASK2_DIR)/build
 BUILD_DIR_TEST = $(TASK2_DIR)/build/test
 
 CRAFTED_SEEDS = $(PROJECT_DIR)/fuzzer/seeds/
-SEED_DIR = $(TASK2_DIR)/build/my-seeds
 
 POWER_SCHEDULE ?= boosted
 
@@ -58,14 +57,13 @@ greybox-smarter: build
 	@echo "Running a smarter version of greybox fuzzer with analysis of the source code"
 	@$(MAKE) prepare-seeds
 	@$(MAKE) prepare-coverage
-	@cd $(FUZZED_PROG) && $(BUILD_DIR)/fuzzer instr_prog $(RESULT_FUZZ) $(MINIMIZE) $(INPUT) $(TIMEOUT) 0 $(POWER_SCHEDULE) coverage.lcov 10 50 $(SEED_DIR)
-	@rm -fr $(SEED_DIR)
+	@cd $(FUZZED_PROG) && $(BUILD_DIR)/fuzzer instr_prog $(RESULT_FUZZ) $(MINIMIZE) $(INPUT) $(TIMEOUT) 0 $(POWER_SCHEDULE) coverage.lcov 10 50 $(FUZZED_PROG)/generated-seeds/
 
 prepare-seeds:
 	@echo "Generating interesting seeds from source files..."
-	@mkdir -p $(SEED_DIR)
+	@mkdir -p $(FUZZED_PROG)/generated-seeds/
 	@cd $(TASK4_DIR) && $(MAKE) run
-	@if [ -d "$(INPUT_SEEDS)" ]; then echo "Directory $(INPUT_SEEDS) exists. Copying contents from $(INPUT_SEEDS) to $(SEED_DIR)...";cp $(INPUT_SEEDS)/* $(SEED_DIR)/; fi
+	@if [ -d "$(INPUT_SEEDS)" ]; then echo "Directory $(INPUT_SEEDS) exists. Copying contents from $(INPUT_SEEDS) to $(FUZZED_PROG)/generated-seeds/ ...";cp $(INPUT_SEEDS)/* $(FUZZED_PROG)/generated-seeds/; fi
 
 run:
 	@if [ "$(FUZZER)" = "blackbox" ]; then \
