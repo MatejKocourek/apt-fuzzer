@@ -20,6 +20,7 @@ build-job:
       - "code-coverage/build/"
       - "fuzzer/build/"
       - "seed-generator/build/"
+      - "external/"
     expire_in: 1 hour
 
 task1-test:
@@ -66,10 +67,8 @@ task4-test:
       - seed-generator/*
       - .gitlab-ci.yml
   script:
-    - apt-get update -y && apt install -y make cmake g++ lcov git
-    - git submodule update --init --recursive
+    - apt-get update -y && apt install -y make cmake g++ lcov
     - cd seed-generator
-    - make clean && make build
     - make test
   coverage:  "/lines......: (\\d+\\.?\\d*%)/"
   artifacts:
@@ -100,8 +99,7 @@ task1-grade:
   stage: test
   #needs: ["task1-test", "task1-benchmark"]
   script:
-    - apt-get update -y && apt install -y make cmake g++ lcov git
-    - git submodule update --init --recursive
+    - apt-get update -y && apt install -y make cmake g++ lcov
     - export PROJECT_DIR=$PWD
     - cd /grader
     - ./grade --task 1 $PROJECT_DIR/code-coverage

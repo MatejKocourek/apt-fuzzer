@@ -55,7 +55,7 @@ target_link_libraries(fuzzer PRIVATE ${Boost_LIBRARIES})
 
 # Tests
 
-set(COVERAGE ON)
+#set(COVERAGE ON)
 
 # If coverage is enabled, modify the compile flags
 if(COVERAGE)

@@ -15,15 +15,15 @@ project ("code-coverage")
 # Add source to this project's executable.
 add_executable (code-coverage "code-coverage.cpp")
 
-add_library(tree-sitter tree-sitter/lib/src/lib.c)
-target_include_directories(tree-sitter PUBLIC tree-sitter/lib/src tree-sitter/lib/include)
+add_library(tree-sitter ${CMAKE_SOURCE_DIR}/../external/tree-sitter/lib/src/lib.c)
+target_include_directories(tree-sitter PUBLIC ${CMAKE_SOURCE_DIR}/../external/tree-sitter/lib/src ${CMAKE_SOURCE_DIR}/../external/tree-sitter/lib/include)
 
-add_library(tree-sitter-c tree-sitter-c/src/parser.c)
-target_include_directories(tree-sitter-c PUBLIC tree-sitter-c/src)
+add_library(tree-sitter-c ${CMAKE_SOURCE_DIR}/../external/tree-sitter-c/src/parser.c)
+target_include_directories(tree-sitter-c PUBLIC ${CMAKE_SOURCE_DIR}/../external/tree-sitter-c/src)
 
-target_include_directories(tree-sitter PUBLIC tree-sitter/lib/src tree-sitter/lib/include)
+target_include_directories(tree-sitter PUBLIC ${CMAKE_SOURCE_DIR}/../external/tree-sitter/lib/src ${CMAKE_SOURCE_DIR}/../external/tree-sitter/lib/include)
 
-target_include_directories(code-coverage PUBLIC tree-sitter-c/src cpp-tree-sitter/include)
+target_include_directories(code-coverage PUBLIC ${CMAKE_SOURCE_DIR}/../external/tree-sitter-c/src ${CMAKE_SOURCE_DIR}/../external/cpp-tree-sitter/include)
 target_link_libraries(code-coverage PRIVATE tree-sitter tree-sitter-c)
 
 set_property(TARGET code-coverage PROPERTY CXX_STANDARD 20)
@@ -50,7 +50,7 @@ FetchContent_MakeAvailable(googletest)
 enable_testing()
 
 add_executable (tests "test.cpp")
-target_include_directories(tests PUBLIC tree-sitter-c/src cpp-tree-sitter/include)
+target_include_directories(tests PUBLIC ${CMAKE_SOURCE_DIR}/../external/tree-sitter-c/src ${CMAKE_SOURCE_DIR}/../external/cpp-tree-sitter/include)
 target_link_libraries(tests PRIVATE tree-sitter tree-sitter-c GTest::gtest_main)
 
 set_property(TARGET tests PROPERTY CXX_STANDARD 20)
