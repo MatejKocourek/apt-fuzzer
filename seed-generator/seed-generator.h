@@ -224,6 +224,11 @@ public:
 		std::unordered_set<std::string> strings(constsStrings);
 		size_t fileCount = 0;
 
+		std::cerr << "Found constants:" << '\n';
+		std::cerr << "STRINGS: " << constsStrings.size() << '\n';
+		std::cerr << "CHARS: " << constsChars.size() << '\n';
+		std::cerr << "INTEGERS: " << constsInts.size() << '\n';
+		std::cerr << std::endl;
 
 		// First, create seeds from all literals, no matter their type, as string
 		strings.insert(constsChars.begin(), constsChars.end());
