@@ -334,10 +334,14 @@ namespace mutators {
         std::uniform_int_distribution<size_t> distPos(0, input.size() - 1);
         std::uniform_int_distribution<int> distBit(0, 6);
 
-        input[distPos(gen)] ^= (1 << distBit(gen));
+        char& charToChange = input[distPos(gen)];
 
-        if (input[distPos(gen)] < 32)
-            input[distPos(gen)] += 32;
+        charToChange ^= (1 << distBit(gen));
+
+        if ((uint8_t)charToChange < 32)
+            charToChange += 32;
+        if ((uint8_t)charToChange == 127)
+            charToChange = 126;
     }
 
     /// <summary>
@@ -353,11 +357,15 @@ namespace mutators {
         int val = 1 + round(distVal(gen));
         val *= 2 * negative(gen) - 1;
 
-        input[distPos(gen)] += val;
-        input[distPos(gen)] &= 0b01111111;
+        char& charToChange = input[distPos(gen)];
 
-        if (input[distPos(gen)] < 32)
-            input[distPos(gen)] += 32;
+        charToChange += val;
+        charToChange &= 0b01111111;
+
+        if ((uint8_t)charToChange < 32)
+            charToChange += 32;
+        if ((uint8_t)charToChange == 127)
+            charToChange = 126;
     }
 
     /// <summary>
