@@ -68,6 +68,9 @@ task4-test:
   script:
     - apt-get update -y && apt install -y make cmake g++ lcov git
     - git submodule update --init --recursive
+    - cd code-coverage
+    - make build
+    - cd ..
     - cd seed-generator
     - make test
   coverage:  "/lines......: (\\d+\\.?\\d*%)/"
