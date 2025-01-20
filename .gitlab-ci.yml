@@ -33,7 +33,6 @@ task1-test:
       - .gitlab-ci.yml
   script:
     - apt-get update -y && apt install -y make cmake g++ lcov git
-    - git submodule update --init --recursive
     - cd code-coverage
     - make test
   coverage: "/lines......: (\\d+\\.\\d+%)/" #Look at those regexes for your specific code coverage tool,  https://docs.gitlab.com/ee/ci/testing/code_coverage.html#test-coverage-examples
