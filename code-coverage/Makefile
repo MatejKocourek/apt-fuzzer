@@ -37,7 +37,7 @@ test:
 
 
 # The 'benchmark' target runs a microbenchmark and prints the speedup
-benchmark: build
+benchmark:
 	@echo "Annotating files for benchmarking..."
 	@cd tests/fibonacci/ && $(BUILD_DIR)/code-coverage fibonacci.c
 	@echo "Compiling files for benchmarking..."
@@ -67,7 +67,7 @@ benchmark: build
 	@rm tests/fibonacci/fibonacci-og
 
 # The 'run' target runs the code coverage tool on the C file(s) specified by the TARGET_COV environment variable
-run: build
+run:
 	@echo "Running code coverage tool on files in $(TARGET_COV)/*.c"
 	@cd $(TARGET_COV) && $(BUILD_DIR)/code-coverage *.c
 	@cd $(TARGET_COV) && $(CC) *_instrumented_main.c -o instr_prog

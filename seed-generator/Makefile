@@ -34,7 +34,7 @@ test:
 	    echo "No percentage found in the output" >&2; \
 	fi
 
-run: build
+run:
 	@echo "Generating seeds from files in $(FUZZED_PROG)"
 	@$(TASK4_BUILD_DIR)/seed-generator $(FUZZED_PROG) $(FUZZED_PROG)/generated-seeds/
 

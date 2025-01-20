@@ -57,7 +57,7 @@ test:
 
 
 # The 'run' target runs the code coverage tool on the C file(s) specified by the TARGET_COV environment variable
-blackbox: build
+blackbox:
 	@echo "Running blacbox fuzzer on $(FUZZED_PROG) and placing results to $(RESULT_FUZZ)"
 	@cd $(BUILD_DIR) && ./fuzzer $(FUZZED_PROG) $(RESULT_FUZZ) $(MINIMIZE) $(INPUT) $(TIMEOUT) $(NB_KNOWN_BUGS)
 
@@ -67,7 +67,7 @@ prepare-coverage:
 	@cd $(FUZZED_PROG) && $(CC) *_instrumented_main.c -fsanitize=address -g -O0 -lm -o instr_prog
 	@rm $(FUZZED_PROG)/*_instrumented_main.c
 
-greybox: build
+greybox:
 	@$(MAKE) prepare-coverage
 	@echo "Running greybox fuzzer on $(FUZZED_PROG) and placing results to $(RESULT_FUZZ)"
 ifdef INPUT_SEEDS
@@ -77,7 +77,7 @@ else
 endif
 	@rm $(FUZZED_PROG)/instr_prog
 
-greybox-smarter: build
+greybox-smarter:
 	@echo "Running a smarter version of greybox fuzzer with analysis of the source code"
 	@$(MAKE) prepare-seeds
 	@$(MAKE) prepare-coverage
