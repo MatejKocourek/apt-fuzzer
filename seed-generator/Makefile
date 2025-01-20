@@ -19,7 +19,18 @@ test:
 	@echo "Running tests and generating code coverage..."
 	@mkdir -p $(TASK4_BUILD_DIR_TEST)
 	@cmake -S . -B $(TASK4_BUILD_DIR_TEST) -DCOVERAGE=ON
-	@cmake --build $(TASK4_BUILD_DIR_TEST) --target coverage
+
+	@echo "Running command and capturing output..."
+	@OUTPUT=$$( \
+	    { cmake --build $(TASK4_BUILD_DIR_TEST) --target coverage | tee /dev/stderr; } | \
+	    grep -oE '[0-9]+\.[0-9]?%' | head -n 1 \
+	) && \
+	if [ -n "$$OUTPUT" ]; then \
+	    echo "Extracted percentage: $$OUTPUT"; \
+	    echo "$$OUTPUT" > coverage.txt; \
+	else \
+	    echo "No percentage found in the output" >&2; \
+	fi
 
 run: build
 	@echo "Generating seeds from files in $(FUZZED_PROG)"

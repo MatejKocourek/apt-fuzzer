@@ -27,10 +27,33 @@ test:
 	@echo "Running tests and generating code coverage..."
 	@mkdir -p $(BUILD_DIR_TEST)
 	@cmake -S . -B $(BUILD_DIR_TEST) -DCOVERAGE=ON
-	@cmake --build $(BUILD_DIR_TEST) --target coverage
+
+	@echo "Running command and capturing output..."
+	@OUTPUT=$$( \
+	    { cmake --build $(BUILD_DIR_TEST) --target coverage | tee /dev/stderr; } | \
+	    grep -oE '[0-9]+\.[0-9]?%' | head -n 1 \
+	) && \
+	if [ -n "$$OUTPUT" ]; then \
+	    echo "Extracted percentage: $$OUTPUT"; \
+	    echo "$$OUTPUT" > coverage.txt; \
+	else \
+	    echo "No percentage found in the output" >&2; \
+	fi
+
 	@echo "Running mutation testing"
 	@clang++-17 $(PROJECT_DIR)/fuzzer/tests-unit.cpp -g -std=c++20 -fpass-plugin=/usr/lib/mull-ir-frontend-17 -grecord-command-line -lgtest -lgtest_main -o $(BUILD_DIR)/fuzzer-mutated
-	@mull-runner-17 $(BUILD_DIR)/fuzzer-mutated --mutation-score-threshold=50 --no-output
+
+	@OUTPUT=$$( \
+	    { mull-runner-17 $(BUILD_DIR)/fuzzer-mutated --mutation-score-threshold=50 --no-output | tee /dev/stderr; } | \
+	    grep -oE '[0-9]+%' | tail -n 1 \
+	) && \
+	if [ -n "$$OUTPUT" ]; then \
+	    echo "Extracted percentage: $$OUTPUT"; \
+	    echo "$$OUTPUT" > mutation.txt; \
+	else \
+	    echo "No percentage found in the output" >&2; \
+	fi
+
 
 # The 'run' target runs the code coverage tool on the C file(s) specified by the TARGET_COV environment variable
 blackbox: build

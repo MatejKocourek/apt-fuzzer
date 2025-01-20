@@ -21,7 +21,19 @@ test:
 	@echo "Running tests and generating code coverage..."
 	@mkdir -p $(BUILD_DIR_TEST)
 	@cmake -S . -B $(BUILD_DIR_TEST) -DCOVERAGE=ON
-	@cmake --build $(BUILD_DIR_TEST) --target coverage
+
+	@echo "Running command and capturing output..."
+	@OUTPUT=$$( \
+	    { cmake --build $(BUILD_DIR_TEST) --target coverage | tee /dev/stderr; } | \
+	    grep -oE '[0-9]+\.[0-9]?%' | head -n 1 \
+	) && \
+	if [ -n "$$OUTPUT" ]; then \
+	    echo "Extracted percentage: $$OUTPUT"; \
+	    echo "$$OUTPUT" > coverage.txt; \
+	else \
+	    echo "No percentage found in the output" >&2; \
+	fi
+
 
 # The 'benchmark' target runs a microbenchmark and prints the speedup
 benchmark: build

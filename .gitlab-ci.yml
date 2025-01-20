@@ -36,6 +36,9 @@ task1-test:
     - cd code-coverage
     - make test
   coverage: "/lines......: (\\d+\\.\\d+%)/" #Look at those regexes for your specific code coverage tool,  https://docs.gitlab.com/ee/ci/testing/code_coverage.html#test-coverage-examples
+  artifacts:
+    paths:
+      - "code-coverage/coverage.txt" # contains just the coverage percentage as a number
 
 task2-3-test:
   stage: test
