@@ -1,16 +1,11 @@
-﻿#include <cassert>
-#include <cstdio>
-#include <memory>
-#include <string>
-#include <iterator>
+﻿#include <string>
 #include <string_view>
 #include <cpp-tree-sitter.h>
 #include <vector>
-#include <variant>
-#include <sstream>
 #include <optional>
 #include <filesystem>
 #include <unordered_set>
+#include <fstream>
 #include "symbol-identifiers.h"
 
 extern "C" {
@@ -39,7 +34,7 @@ public:
 	/// <param name="source">Source code to where the result will point</param>
 	/// <param name="node">Node to show</param>
 	/// <returns>string_view from source string</returns>
-	static std::string_view nodeString(const std::string& source, const ts::Node& node)
+	static std::string_view nodeString(const std::string_view& source, const ts::Node& node)
 	{
 		auto range = node.getByteRange();
 		std::string_view functionName(&source[range.start], range.end - range.start);
@@ -134,7 +129,7 @@ public:
 	/// </summary>
 	/// <param name="sourcecode">Sourcecode that tree-sitter was run on</param>
 	/// <param name="node">Node to parse</param>
-	void parseRecursive(const std::string& sourcecode, const ts::Node& node)
+	void parseRecursive(const std::string_view& sourcecode, const ts::Node& node)
 	{
 		for (const auto& child : ts::Children(node))
 		{
@@ -185,7 +180,7 @@ public:
 	/// Parse given sourcecode of C file, and find and save all constants
 	/// </summary>
 	/// <param name="sourcecode">Full sourcecode of a given file</param>
-	void parseSource(const std::string& sourcecode)
+	void parseSource(const std::string_view& sourcecode)
 	{
 		// Create a language and parser.
 		ts::Parser parser{ tree_sitter_c() };

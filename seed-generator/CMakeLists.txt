@@ -74,7 +74,7 @@ if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
     # Add a custom target to generate coverage report using lcov
     add_custom_target(coverage
         COMMAND ./tests
-        COMMAND lcov --capture --directory . --output-file coverage.info --include */FileInstrument.h
+        COMMAND lcov --capture --directory . --output-file coverage.info --include */seed-generator.h
         COMMAND genhtml coverage.info --output-directory coverage_report
         COMMENT "Generating code coverage report..."
         DEPENDS tests

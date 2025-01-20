@@ -57,6 +57,23 @@ task2-3-test:
       - "fuzzer/coverage.txt" # contains just the coverage percentage as a number
       - "fuzzer/mutation.txt" # contains the mutation score as a number
 
+task4-test:
+  stage: test
+  dependencies:
+    - build-job
+  rules:
+    - changes: 
+      - seed-generator/*
+      - .gitlab-ci.yml
+  script:
+    - apt-get update -y && apt install -y make cmake g++ lcov
+    - cd seed-generator
+    - make test
+  coverage:  "/lines......: (\\d+\\.?\\d*%)/"
+  artifacts:
+    paths:
+      - "seed-generator/coverage.txt" # contains just the coverage percentage as a number
+
 task1-benchmark:
   stage: test
   dependencies:
