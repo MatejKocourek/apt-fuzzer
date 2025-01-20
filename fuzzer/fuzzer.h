@@ -211,6 +211,12 @@ static std::ostream& escape(std::ostream& out, const std::string_view& str)
     return out;
 }
 
+bool isJsonAllowedOrEscapeable(char c)
+{
+    unsigned char uchar = static_cast<unsigned char>(c);
+    return !(uchar > 126 || uchar < 8 || uchar == 11 || (uchar < 32 && uchar > 13));
+}
+
 /// <summary>
 /// Mutators that can change existing strings
 /// </summary>
@@ -1763,11 +1769,11 @@ struct fuzzer_greybox : public fuzzer
     /// <summary>
     /// Try to run a seed, and reward it if it succeeds
     /// </summary>
-    /// <param name="selected">Seed that the mutant was taken from, nullptr if no parent</param>
+    /// <param name="parent">Seed that the mutant was taken from, nullptr if orphan (initial seed)</param>
     /// <param name="mutant">Mutant to run on</param>
     /// <typeparam name="alwaysInsert">Always insert in the queue, even if no improvement occurs</param>
     template <bool alwaysInsert = false>
-    void trySeed(seed * selected, std::string mutant)
+    void trySeed(seed * parent, std::string mutant)
     {
         // Prepare input for execution
         executionInput->setInput(mutant);
@@ -1800,14 +1806,14 @@ struct fuzzer_greybox : public fuzzer
         bool foundNewPath = it.second; // If this created a new element in the table
 
         // If this mutant has a parent
-        if (selected != nullptr)
+        if (parent != nullptr)
         {
             // Reward parent for finding a new path
             if (foundNewPath)
-                selected->incrementImproved();
+                parent->incrementImproved();
 
             // Update and return the original seed back to the queue
-            selected->update();
+            parent->update();
             queue->weightedRandomChoiceReturn();
         }
 
@@ -1852,11 +1858,8 @@ struct fuzzer_greybox : public fuzzer
 
                 // Check if input does not contain control characters (we don't support those)
                 for (const auto& c : input)
-                {
-                    unsigned char uchar = static_cast<unsigned char>(c);
-                    if (uchar > 126 || uchar < 8 || uchar == 11 || (uchar < 32 && uchar > 13))
+                    if (!isJsonAllowedOrEscapeable(c))
                         goto containsEscapes;
-                }
 
                 trySeed<true>(nullptr, std::move(input));
 

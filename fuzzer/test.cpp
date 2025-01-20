@@ -403,6 +403,21 @@ TEST(Escape, escape) {
 	}
 }
 
+TEST(Escape, invalid)
+{
+	EXPECT_TRUE(isJsonAllowedOrEscapeable('a'));
+	EXPECT_TRUE(isJsonAllowedOrEscapeable('~'));
+	EXPECT_TRUE(isJsonAllowedOrEscapeable('\b'));
+	EXPECT_TRUE(isJsonAllowedOrEscapeable(' '));
+	EXPECT_TRUE(isJsonAllowedOrEscapeable('\r'));
+
+	EXPECT_FALSE(isJsonAllowedOrEscapeable(127));
+	EXPECT_FALSE(isJsonAllowedOrEscapeable('\a'));
+	EXPECT_FALSE(isJsonAllowedOrEscapeable('\v'));
+	EXPECT_FALSE(isJsonAllowedOrEscapeable(31));
+	EXPECT_FALSE(isJsonAllowedOrEscapeable(14));
+}
+
 
 TEST(Coverage, lcov) {
 	std::string input = "TN:test\n"
