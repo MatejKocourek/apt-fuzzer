@@ -1,7 +1,7 @@
 ﻿# CMakeList.txt : CMake project for code-coverage, include source and define
 # project specific logic here.
 #
-cmake_minimum_required (VERSION 3.2)
+cmake_minimum_required (VERSION 3.9)
 
 # Enable Hot Reload for MSVC compilers if supported.
 if (POLICY CMP0141)
@@ -11,10 +11,22 @@ endif()
 
 project ("code-coverage")
 
+# Optimizations
+
 if (MSVC)
     #add_compile_options(/arch:AVX512)
 else()
     add_compile_options(-march=native)
+endif()
+
+include(CheckIPOSupported)
+check_ipo_supported(RESULT supported OUTPUT error)
+
+if( supported )
+    message(STATUS "IPO / LTO enabled for release builds")
+    set(CMAKE_INTERPROCEDURAL_OPTIMIZATION_RELEASE TRUE)
+else()
+    message(STATUS "IPO / LTO not supported: <${error}>")
 endif()
 
 # Add source to this project's executable.
