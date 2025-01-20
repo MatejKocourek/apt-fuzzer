@@ -9,6 +9,7 @@ BUILD_DIR = $(PROJECT_DIR)/code-coverage/build
 BUILD_DIR_TEST = $(PROJECT_DIR)/code-coverage/build/test
 TEST_DIR = $(PROJECT_DIR)/code-coverage/tests
 
+.PHONY: build test benchmark run clean
 
 # The 'build' target builds the program using CMake
 build:

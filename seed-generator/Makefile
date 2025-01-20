@@ -8,6 +8,8 @@ TASK4_BUILD_DIR = $(TASK4_DIR)/build
 TASK4_BUILD_DIR_TEST = $(TASK4_DIR)/build/test
 SEED_DIR ?= $(TASK2_DIR)/build/my-seeds
 
+.PHONY: build test run clean
+
 # The 'build' target builds the program using CMake
 build:
 	@echo "Building the program using CMake..."

@@ -15,6 +15,7 @@ CRAFTED_SEEDS = $(PROJECT_DIR)/fuzzer/seeds/
 
 POWER_SCHEDULE ?= boosted
 
+.PHONY: build test blackbox greybox greybox-smarter prepare-coverage prepare-seeds run clean
 
 # The 'build' target builds the program using CMake
 build:
