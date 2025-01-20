@@ -18,16 +18,16 @@ Given our testing, this makes for an improvement in each of programs. However, t
 
 Our improvement shows success in all programs - it manages to find 4 extra bugs, making all of them (14/14)! At one point it was, and maybe still is, the best result on the leaderboard.
 
-Note that this was achieved using the boosted power schedule, which was changed to default, unless specified.
-
 It is very easy for the program to find exploits of passphrases, various sizes of strings and specific numbers that are identified in the source code - this is what it was made to do.
 It is no suprise than that problems such as `buffer-overflow`, `minimization`, `infinite-loop` or even finding the secret passphrase in `string-length` pose no challange to our approach, and are usually found in under a second (after which they are minimized, which takes much more time).
 
-Where it struggles is with the inputs, where the "secret input" is not in somewhere in one place in the source code. Problems such as finding the buffer overflow in `string-length` (requires 1 + newline + long string + newline + 3) are less likely to be found, but given enough time, our program finds them as well. This "time" is luckily under the set limit of 10 minutes, so it finds everything in the grader (I think). It even manages to find the `evil(1)` function call from `arith-expr` (I was truly suprised)!
+Where it struggles is with the inputs, where the "secret input" is not in somewhere in one place in the source code. Problems such as finding the buffer overflow in `string-length` (requires 1 + newline + long string + newline + 3) are less likely to be found, but given enough time, our program finds them as well. This "time" is luckily under the set limit of 10 minutes, so it finds everything in the grader (I think). It even manages to find the `evil(1)` function call from `arith-expr` (but that is probably just pure luck)!
 
 Our idea also improves the speed under which the program is covered, especially at the start, where it finds faster what branches to take.
 
 Naturally, it works best with a good fuzzer - the covered lines need to be clustered together, and the coverage tool should ideally cover also included headers for the power functions to work better. The latter is unfortunately not the case, but that is beyond the scope of this project. The former was added to the fuzzer from task 3 because of this exact reason.
+
+Note that this was achieved using the boosted power schedule, which was changed to default, unless specified (and the grader never specifies it). Simple power schedule finds all but the evil function call.
 
 ## Statistics
 

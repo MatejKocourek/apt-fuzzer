@@ -13,7 +13,7 @@ BUILD_DIR_TEST = $(TASK2_DIR)/build/test
 
 CRAFTED_SEEDS = $(PROJECT_DIR)/fuzzer/seeds/
 
-POWER_SCHEDULE ?= simple
+POWER_SCHEDULE ?= boosted
 
 
 # The 'build' target builds the program using CMake
