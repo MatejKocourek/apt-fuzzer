@@ -69,7 +69,7 @@ task4-test:
     - apt-get update -y && apt install -y make cmake g++ lcov git
     - git submodule update --init --recursive
     - cd code-coverage
-    - make build
+    - make clean && make build
     - cd ..
     - cd seed-generator
     - make test
